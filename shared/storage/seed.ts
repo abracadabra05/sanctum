@@ -1,0 +1,200 @@
+import {
+  addDays,
+  combineDateAndTime,
+  getWeekday,
+  toDateKey,
+} from '@/shared/lib/date';
+import type { AppState, TaskCategoryEntity } from '@/shared/types/app';
+
+const now = new Date();
+const todayKey = toDateKey(now);
+
+export const PRESET_TASK_CATEGORIES: TaskCategoryEntity[] = [
+  {
+    id: 'work',
+    label: 'Work',
+    color: '#E5EAF1',
+    kind: 'preset',
+    archived: false,
+  },
+  {
+    id: 'personal',
+    label: 'Personal',
+    color: '#E9EDF3',
+    kind: 'preset',
+    archived: false,
+  },
+  {
+    id: 'health',
+    label: 'Health',
+    color: '#F7DCE9',
+    kind: 'preset',
+    archived: false,
+  },
+  {
+    id: 'study',
+    label: 'Study',
+    color: '#E7F3DE',
+    kind: 'preset',
+    archived: false,
+  },
+  {
+    id: 'home',
+    label: 'Home',
+    color: '#DDEBFF',
+    kind: 'preset',
+    archived: false,
+  },
+];
+
+export const createSeedState = (): AppState => ({
+  schemaVersion: '1',
+  hydrationToday: {
+    date: todayKey,
+    consumedMl: 1800,
+    entries: [
+      {
+        id: 'water-1',
+        amountMl: 700,
+        timestamp: now.toISOString(),
+        source: 'quick',
+      },
+      {
+        id: 'water-2',
+        amountMl: 850,
+        timestamp: now.toISOString(),
+        source: 'quick',
+      },
+      {
+        id: 'water-3',
+        amountMl: 250,
+        timestamp: now.toISOString(),
+        source: 'custom',
+      },
+    ],
+    isGoalReached: false,
+    overflowMl: 0,
+  },
+  hydrationHistory: [],
+  taskCategories: [
+    ...PRESET_TASK_CATEGORIES,
+    {
+      id: 'creative',
+      label: 'Creative',
+      color: '#EFE2FB',
+      kind: 'custom',
+      archived: false,
+    },
+  ],
+  tasks: [
+    {
+      id: 'task-1',
+      title: 'Update design system tokens',
+      notes: 'Review spacing scale and card radii.',
+      priority: 'high',
+      repeatRule: { type: 'none' },
+      categoryId: 'work',
+      dueAt: combineDateAndTime(toDateKey(addDays(now, -1)), '10:00'),
+      completedAt: null,
+      archived: false,
+    },
+    {
+      id: 'task-2',
+      title: 'Evening mindfulness session',
+      notes: '10 minutes of breathing and reflection.',
+      priority: 'medium',
+      repeatRule: { type: 'daily' },
+      categoryId: 'health',
+      dueAt: combineDateAndTime(todayKey, '18:00'),
+      completedAt: null,
+      archived: false,
+    },
+    {
+      id: 'task-3',
+      title: 'Check garden hydration',
+      notes: 'See if balcony plants need water.',
+      priority: 'low',
+      repeatRule: { type: 'weekdays' },
+      categoryId: 'personal',
+      dueAt: combineDateAndTime(todayKey, '08:00'),
+      completedAt: now.toISOString(),
+      archived: false,
+    },
+    {
+      id: 'task-4',
+      title: 'Sync with the creative team',
+      notes: 'Prepare notes for tomorrow stand-up.',
+      priority: 'medium',
+      repeatRule: { type: 'weekly', day: getWeekday(addDays(now, 1)) },
+      categoryId: 'creative',
+      dueAt: combineDateAndTime(toDateKey(addDays(now, 1)), '11:00'),
+      completedAt: null,
+      archived: false,
+    },
+  ],
+  taskCompletions: [
+    {
+      taskId: 'task-3',
+      occurrenceDate: todayKey,
+      completedAt: now.toISOString(),
+    },
+  ],
+  habits: [
+    {
+      id: 'habit-1',
+      name: 'Meditation',
+      icon: 'sparkles',
+      accentColor: '#CFF4F1',
+      goalMode: 'daily',
+      targetPerPeriod: 1,
+      schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
+      archived: false,
+      reminder: { enabled: true, time: '20:00' },
+      completions: Array.from({ length: 12 }, (_, index) =>
+        toDateKey(addDays(now, -index)),
+      ),
+    },
+    {
+      id: 'habit-2',
+      name: 'Gym',
+      icon: 'circle',
+      accentColor: '#EFD7E7',
+      goalMode: 'weekly',
+      targetPerPeriod: 3,
+      schedule: { days: [1, 3, 5] },
+      archived: false,
+      reminder: { enabled: true, time: '08:00' },
+      completions: [
+        toDateKey(addDays(now, -2)),
+        toDateKey(addDays(now, -4)),
+        toDateKey(addDays(now, -7)),
+      ],
+    },
+    {
+      id: 'habit-3',
+      name: 'Outdoor walk',
+      icon: 'leaf',
+      accentColor: '#DCEEFF',
+      goalMode: 'daily',
+      targetPerPeriod: 1,
+      schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
+      archived: false,
+      reminder: { enabled: false, time: null },
+      completions: Array.from({ length: 8 }, (_, index) =>
+        toDateKey(addDays(now, -index)),
+      ),
+    },
+  ],
+  preferences: {
+    displayName: 'Astra',
+    dailyWaterTargetMl: 2500,
+    quickWaterAmounts: [250, 500, 750],
+    dayStartsAt: '00:00',
+    timeFormat: '12h',
+    weekStartsOn: 1,
+    notificationsEnabled: false,
+    hasCompletedOnboarding: false,
+    waterReminderIntervalMinutes: 90,
+    waterReminderCutoffTime: '22:00',
+  },
+});

@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
-import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 export default function NotificationsSettingsScreen() {
+  const theme = useTheme();
   const preferences = useAppStore((state) => state.preferences);
   const setNotificationPreferences = useAppStore(
     (state) => state.setNotificationPreferences,
@@ -20,26 +21,60 @@ export default function NotificationsSettingsScreen() {
 
   return (
     <ScreenShell>
-      <View style={styles.card}>
-        <Text style={styles.title}>Notifications</Text>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            shadowColor: theme.shadows.card.shadowColor,
+            shadowOffset: theme.shadows.card.shadowOffset,
+            shadowOpacity: theme.shadows.card.shadowOpacity,
+            shadowRadius: theme.shadows.card.shadowRadius,
+            elevation: theme.shadows.card.elevation,
+          },
+        ]}
+      >
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          Notifications
+        </Text>
         <Pressable
           onPress={() => setEnabled((value) => !value)}
           style={styles.toggleRow}
         >
-          <Text style={styles.labelText}>Enable notifications</Text>
-          <Text style={styles.valueText}>{enabled ? 'ON' : 'OFF'}</Text>
+          <Text style={[styles.labelText, { color: theme.colors.textPrimary }]}>
+            Enable notifications
+          </Text>
+          <Text style={[styles.valueText, { color: theme.colors.brand }]}>
+            {enabled ? 'ON' : 'OFF'}
+          </Text>
         </Pressable>
-        <Text style={styles.label}>Water interval (minutes)</Text>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          Water interval (minutes)
+        </Text>
         <TextInput
           keyboardType="number-pad"
           onChangeText={setIntervalDraft}
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.input,
+              color: theme.colors.textPrimary,
+            },
+          ]}
           value={interval}
         />
-        <Text style={styles.label}>Water cutoff time</Text>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          Water cutoff time
+        </Text>
         <TextInput
           onChangeText={setCutoff}
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.input,
+              color: theme.colors.textPrimary,
+            },
+          ]}
           value={cutoff}
         />
         <Pressable
@@ -50,9 +85,21 @@ export default function NotificationsSettingsScreen() {
               waterReminderCutoffTime: cutoff,
             });
           }}
-          style={styles.button}
+          style={[
+            styles.button,
+            {
+              backgroundColor: theme.colors.brand,
+              shadowColor: theme.shadows.button.shadowColor,
+              shadowOffset: theme.shadows.button.shadowOffset,
+              shadowOpacity: theme.shadows.button.shadowOpacity,
+              shadowRadius: theme.shadows.button.shadowRadius,
+              elevation: theme.shadows.button.elevation,
+            },
+          ]}
         >
-          <Text style={styles.buttonLabel}>Save notifications</Text>
+          <Text style={[styles.buttonLabel, { color: theme.colors.surface }]}>
+            Save notifications
+          </Text>
         </Pressable>
       </View>
     </ScreenShell>
@@ -63,39 +110,32 @@ const styles = StyleSheet.create({
   card: {
     marginTop: spacing.xl,
     gap: spacing.md,
-    backgroundColor: colors.surface,
     borderRadius: radii.card,
     padding: spacing.xl,
-    ...shadows.card,
   },
-  title: { ...typography.h1, color: colors.textPrimary },
+  title: { ...typography.h1 },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  labelText: { ...typography.bodyStrong, color: colors.textPrimary },
-  valueText: { ...typography.bodyStrong, color: colors.brand },
+  labelText: { ...typography.bodyStrong },
+  valueText: { ...typography.bodyStrong },
   label: {
     ...typography.caption,
-    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   input: {
     borderRadius: 18,
-    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
-    color: colors.textPrimary,
   },
   button: {
     minHeight: 54,
     borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand,
-    ...shadows.button,
   },
-  buttonLabel: { ...typography.bodyStrong, color: colors.surface },
+  buttonLabel: { ...typography.bodyStrong },
 });

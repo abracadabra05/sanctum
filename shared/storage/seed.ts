@@ -194,7 +194,9 @@ export const createSeedState = (): AppState => ({
     weekStartsOn: 1,
     notificationsEnabled: false,
     hasCompletedOnboarding: false,
+    hasSeenAppTour: false,
     waterReminderIntervalMinutes: 90,
     waterReminderCutoffTime: '22:00',
+    themeMode: 'system',
   },
 });

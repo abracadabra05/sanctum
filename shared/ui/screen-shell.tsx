@@ -3,16 +3,18 @@ import type { PropsWithChildren, ReactNode } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, spacing } from '@/shared/theme';
+import { spacing, useTheme } from '@/shared/theme';
 
 interface ScreenShellProps extends PropsWithChildren {
   header?: ReactNode;
 }
 
 export function ScreenShell({ children, header }: ScreenShellProps) {
+  const theme = useTheme();
+
   return (
     <LinearGradient
-      colors={[colors.backgroundTop, colors.backgroundBottom]}
+      colors={[theme.colors.backgroundTop, theme.colors.backgroundBottom]}
       style={styles.gradient}
     >
       <SafeAreaView edges={['top']} style={styles.safeArea}>

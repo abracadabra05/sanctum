@@ -1,21 +1,34 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  LayoutAnimation,
   Modal,
+  PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
 } from 'react-native';
 
 import { getHabitCards } from '@/features/habits/selectors';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
-import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { HabitCard } from '@/shared/ui/habit-card';
 import { ScreenShell } from '@/shared/ui/screen-shell';
+
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const habitIcons: ('sparkles' | 'circle' | 'leaf' | 'book' | 'moon')[] = [
   'sparkles',
@@ -51,6 +64,9 @@ const createHabitDraft = (): HabitDraft => ({
 });
 
 export default function HabitsScreen() {
+  const theme = useTheme();
+  const params = useLocalSearchParams<{ compose?: string }>();
+  const router = useRouter();
   const isReady = useAppStore((state) => state.isReady);
   const hydrate = useAppStore((state) => state.hydrate);
   const habits = useAppStore((state) => state.habits);
@@ -62,12 +78,68 @@ export default function HabitsScreen() {
   const [showArchived, setShowArchived] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<HabitDraft>(createHabitDraft());
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+
+  const closeSheet = useCallback(() => {
+    Animated.timing(sheetTranslateY, {
+      toValue: 420,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      setModalOpen(false);
+      sheetTranslateY.setValue(0);
+    });
+  }, [sheetTranslateY]);
+
+  const sheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) &&
+          gestureState.dy > 8,
+        onPanResponderMove: (_, gestureState) => {
+          sheetTranslateY.setValue(Math.max(0, gestureState.dy));
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 110 || gestureState.vy > 1.2) {
+            closeSheet();
+            return;
+          }
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 6,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 6,
+          }).start();
+        },
+      }),
+    [closeSheet, sheetTranslateY],
+  );
 
   useEffect(() => {
     if (!isReady) {
       void hydrate();
     }
   }, [hydrate, isReady]);
+
+  useEffect(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [showArchived, modalOpen]);
+
+  useEffect(() => {
+    if (params.compose === '1') {
+      setDraft(createHabitDraft());
+      sheetTranslateY.setValue(0);
+      setModalOpen(true);
+      router.replace('/(tabs)/habits');
+    }
+  }, [params.compose, router, sheetTranslateY]);
 
   const cards = useMemo(
     () =>
@@ -83,15 +155,21 @@ export default function HabitsScreen() {
       <ScreenShell
         header={
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Habit Garden</Text>
+            <Text
+              style={[styles.headerTitle, { color: theme.colors.textPrimary }]}
+            >
+              Habits
+            </Text>
             <Pressable
               onPress={() => {
                 setDraft(createHabitDraft());
+                sheetTranslateY.setValue(0);
                 setModalOpen(true);
               }}
+              style={styles.headerAction}
             >
               <Ionicons
-                color={colors.textSecondary}
+                color={theme.colors.iconNeutral}
                 name="add-circle"
                 size={28}
               />
@@ -99,12 +177,28 @@ export default function HabitsScreen() {
           </View>
         }
       >
-        <View style={styles.summary}>
-          <Text style={styles.eyebrow}>Consistency</Text>
-          <Text style={styles.title}>Keep your rituals alive</Text>
-          <Text style={styles.body}>
-            Habits keep streaks, schedules and reminders separate from one-off
-            tasks.
+        <View
+          style={[
+            styles.summary,
+            {
+              backgroundColor: theme.colors.surfaceElevated,
+              shadowColor: theme.shadows.card.shadowColor,
+              shadowOffset: theme.shadows.card.shadowOffset,
+              shadowOpacity: theme.shadows.card.shadowOpacity,
+              shadowRadius: theme.shadows.card.shadowRadius,
+              elevation: theme.shadows.card.elevation,
+            },
+          ]}
+        >
+          <Text style={[styles.eyebrow, { color: theme.colors.brand }]}>
+            Consistency
+          </Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            Keep your rituals alive
+          </Text>
+          <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
+            Habits hold streaks, schedules and reminders without mixing into
+            one-off tasks.
           </Text>
         </View>
 
@@ -118,12 +212,24 @@ export default function HabitsScreen() {
               <Pressable
                 key={item.id}
                 onPress={() => setShowArchived(item.id === 'archived')}
-                style={[styles.segment, active && styles.segmentActive]}
+                style={({ pressed }) => [
+                  styles.segment,
+                  {
+                    backgroundColor: active
+                      ? theme.colors.brand
+                      : theme.colors.surfaceMuted,
+                  },
+                  pressed && styles.segmentPressed,
+                ]}
               >
                 <Text
                   style={[
                     styles.segmentLabel,
-                    active && styles.segmentLabelActive,
+                    {
+                      color: active
+                        ? theme.colors.surface
+                        : theme.colors.textPrimary,
+                    },
                   ]}
                 >
                   {item.label}
@@ -135,35 +241,63 @@ export default function HabitsScreen() {
 
         <View style={styles.grid}>
           {cards.map((habit) => (
-            <HabitCard
-              habit={habit}
-              key={habit.id}
-              onLongPress={() => {
-                const item = habits.find((entry) => entry.id === habit.id);
-                if (!item) return;
-                setDraft({
-                  id: item.id,
-                  name: item.name,
-                  icon: item.icon,
-                  accentColor: item.accentColor,
-                  goalMode: item.goalMode,
-                  targetPerPeriod: String(item.targetPerPeriod),
-                  schedule: item.schedule.days,
-                  reminderEnabled: item.reminder.enabled,
-                  reminderTime: item.reminder.time ?? '20:00',
-                });
-                setModalOpen(true);
-              }}
-              onPress={() => markHabitComplete(habit.id, toDateKey(new Date()))}
-            />
+            <View key={habit.id}>
+              <HabitCard
+                habit={habit}
+                onLongPress={() => {
+                  const item = habits.find((entry) => entry.id === habit.id);
+                  if (!item) return;
+                  setDraft({
+                    id: item.id,
+                    name: item.name,
+                    icon: item.icon,
+                    accentColor: item.accentColor,
+                    goalMode: item.goalMode,
+                    targetPerPeriod: String(item.targetPerPeriod),
+                    schedule: item.schedule.days,
+                    reminderEnabled: item.reminder.enabled,
+                    reminderTime: item.reminder.time ?? '20:00',
+                  });
+                  sheetTranslateY.setValue(0);
+                  setModalOpen(true);
+                }}
+                onPress={() =>
+                  markHabitComplete(habit.id, toDateKey(new Date()))
+                }
+              />
+            </View>
           ))}
         </View>
       </ScreenShell>
 
       <Modal animationType="slide" transparent visible={modalOpen}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: theme.colors.overlay },
+          ]}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: theme.colors.surfaceElevated,
+                transform: [{ translateY: sheetTranslateY }],
+              },
+            ]}
+          >
+            <View {...sheetPanResponder.panHandlers} style={styles.dragArea}>
+              <View
+                style={[
+                  styles.dragHandle,
+                  { backgroundColor: theme.colors.divider },
+                ]}
+              />
+            </View>
+            <Text
+              style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}
+            >
               {draft.id ? 'Edit habit' : 'Create habit'}
             </Text>
             <TextInput
@@ -171,7 +305,14 @@ export default function HabitsScreen() {
                 setDraft((current) => ({ ...current, name: value }))
               }
               placeholder="Habit name"
-              style={styles.input}
+              placeholderTextColor={theme.colors.textMuted}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
               value={draft.name}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -182,15 +323,26 @@ export default function HabitsScreen() {
                     onPress={() =>
                       setDraft((current) => ({ ...current, icon }))
                     }
-                    style={[
+                    style={({ pressed }) => [
                       styles.optionChip,
-                      draft.icon === icon && styles.optionChipActive,
+                      {
+                        backgroundColor:
+                          draft.icon === icon
+                            ? theme.colors.brand
+                            : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.segmentPressed,
                     ]}
                   >
                     <Text
                       style={[
                         styles.optionLabel,
-                        draft.icon === icon && styles.optionLabelActive,
+                        {
+                          color:
+                            draft.icon === icon
+                              ? theme.colors.surface
+                              : theme.colors.textPrimary,
+                        },
                       ]}
                     >
                       {icon}
@@ -210,10 +362,14 @@ export default function HabitsScreen() {
                         accentColor: color,
                       }))
                     }
-                    style={[
+                    style={({ pressed }) => [
                       styles.colorSwatch,
                       { backgroundColor: color },
-                      draft.accentColor === color && styles.colorSwatchActive,
+                      draft.accentColor === color && {
+                        borderWidth: 3,
+                        borderColor: theme.colors.brandStrong,
+                      },
+                      pressed && styles.segmentPressed,
                     ]}
                   />
                 ))}
@@ -231,12 +387,24 @@ export default function HabitsScreen() {
                         goalMode: mode as 'daily' | 'weekly',
                       }))
                     }
-                    style={[styles.segment, active && styles.segmentActive]}
+                    style={({ pressed }) => [
+                      styles.segment,
+                      {
+                        backgroundColor: active
+                          ? theme.colors.brand
+                          : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.segmentPressed,
+                    ]}
                   >
                     <Text
                       style={[
                         styles.segmentLabel,
-                        active && styles.segmentLabelActive,
+                        {
+                          color: active
+                            ? theme.colors.surface
+                            : theme.colors.textPrimary,
+                        },
                       ]}
                     >
                       {mode}
@@ -251,10 +419,24 @@ export default function HabitsScreen() {
                 setDraft((current) => ({ ...current, targetPerPeriod: value }))
               }
               placeholder="Target per period"
-              style={styles.input}
+              placeholderTextColor={theme.colors.textMuted}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
               value={draft.targetPerPeriod}
             />
-            <Text style={styles.inlineLabel}>Schedule</Text>
+            <Text
+              style={[
+                styles.inlineLabel,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Schedule
+            </Text>
             <View style={styles.optionsRow}>
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, day) => {
                 const active = draft.schedule.includes(day);
@@ -269,12 +451,24 @@ export default function HabitsScreen() {
                           : [...current.schedule, day].sort(),
                       }))
                     }
-                    style={[styles.dayChip, active && styles.segmentActive]}
+                    style={({ pressed }) => [
+                      styles.dayChip,
+                      {
+                        backgroundColor: active
+                          ? theme.colors.brand
+                          : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.segmentPressed,
+                    ]}
                   >
                     <Text
                       style={[
                         styles.segmentLabel,
-                        active && styles.segmentLabelActive,
+                        {
+                          color: active
+                            ? theme.colors.surface
+                            : theme.colors.textPrimary,
+                        },
                       ]}
                     >
                       {label}
@@ -291,15 +485,24 @@ export default function HabitsScreen() {
                     reminderEnabled: !current.reminderEnabled,
                   }))
                 }
-                style={[
+                style={({ pressed }) => [
                   styles.segment,
-                  draft.reminderEnabled && styles.segmentActive,
+                  {
+                    backgroundColor: draft.reminderEnabled
+                      ? theme.colors.brand
+                      : theme.colors.surfaceMuted,
+                  },
+                  pressed && styles.segmentPressed,
                 ]}
               >
                 <Text
                   style={[
                     styles.segmentLabel,
-                    draft.reminderEnabled && styles.segmentLabelActive,
+                    {
+                      color: draft.reminderEnabled
+                        ? theme.colors.surface
+                        : theme.colors.textPrimary,
+                    },
                   ]}
                 >
                   Reminder
@@ -310,7 +513,15 @@ export default function HabitsScreen() {
                   setDraft((current) => ({ ...current, reminderTime: value }))
                 }
                 placeholder="20:00"
-                style={[styles.input, styles.inlineInput]}
+                placeholderTextColor={theme.colors.textMuted}
+                style={[
+                  styles.input,
+                  styles.inlineInput,
+                  {
+                    backgroundColor: theme.colors.input,
+                    color: theme.colors.textPrimary,
+                  },
+                ]}
                 value={draft.reminderTime}
               />
             </View>
@@ -319,18 +530,40 @@ export default function HabitsScreen() {
                 <Pressable
                   onPress={() => {
                     archiveHabit(draft.id!);
-                    setModalOpen(false);
+                    closeSheet();
                   }}
-                  style={[styles.bottomButton, styles.archiveButton]}
+                  style={({ pressed }) => [
+                    styles.bottomButton,
+                    { backgroundColor: theme.colors.accentRedSoft },
+                    pressed && styles.segmentPressed,
+                  ]}
                 >
-                  <Text style={styles.archiveLabel}>Archive</Text>
+                  <Text
+                    style={[
+                      styles.archiveLabel,
+                      { color: theme.colors.accentRed },
+                    ]}
+                  >
+                    Archive
+                  </Text>
                 </Pressable>
               ) : null}
               <Pressable
-                onPress={() => setModalOpen(false)}
-                style={[styles.bottomButton, styles.cancelButton]}
+                onPress={closeSheet}
+                style={({ pressed }) => [
+                  styles.bottomButton,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                  pressed && styles.segmentPressed,
+                ]}
               >
-                <Text style={styles.cancelLabel}>Close</Text>
+                <Text
+                  style={[
+                    styles.cancelLabel,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Close
+                </Text>
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -354,16 +587,22 @@ export default function HabitsScreen() {
                   } else {
                     createHabit(payload);
                   }
-                  setModalOpen(false);
+                  closeSheet();
                 }}
-                style={[styles.bottomButton, styles.saveButton]}
+                style={({ pressed }) => [
+                  styles.bottomButton,
+                  { backgroundColor: theme.colors.brand },
+                  pressed && styles.segmentPressed,
+                ]}
               >
-                <Text style={styles.saveLabel}>
+                <Text
+                  style={[styles.saveLabel, { color: theme.colors.surface }]}
+                >
                   {draft.id ? 'Save' : 'Create'}
                 </Text>
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </>
@@ -378,77 +617,82 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: colors.textPrimary },
+  headerTitle: { fontSize: 24, fontWeight: '700' },
+  headerAction: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   summary: {
     gap: spacing.sm,
     borderRadius: radii.card,
-    backgroundColor: colors.surface,
     padding: spacing.xl,
-    ...shadows.card,
   },
-  eyebrow: { ...typography.eyebrow, color: colors.brand },
-  title: { ...typography.h1, color: colors.textPrimary },
-  body: { ...typography.body, color: colors.textSecondary },
+  eyebrow: { ...typography.eyebrow },
+  title: { ...typography.h1 },
+  body: { ...typography.body },
   segmentRow: { flexDirection: 'row', gap: spacing.sm },
   segment: {
     flex: 1,
     borderRadius: radii.pill,
-    backgroundColor: '#E8EDF4',
     paddingHorizontal: 18,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  segmentActive: { backgroundColor: colors.brand },
-  segmentLabel: { ...typography.bodyStrong, color: colors.textPrimary },
-  segmentLabelActive: { color: colors.surface },
+  segmentPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  segmentLabel: { ...typography.bodyStrong },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15,23,42,0.28)',
   },
   sheet: {
-    backgroundColor: colors.surface,
     borderTopLeftRadius: radii.card,
     borderTopRightRadius: radii.card,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
     gap: spacing.md,
   },
-  sheetTitle: { ...typography.h2, color: colors.textPrimary },
+  dragArea: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  dragHandle: {
+    width: 52,
+    height: 5,
+    borderRadius: 999,
+  },
+  sheetTitle: { ...typography.h2 },
   input: {
     borderRadius: 18,
-    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
-    color: colors.textPrimary,
   },
   optionsRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   optionChip: {
     borderRadius: radii.pill,
-    backgroundColor: '#E8EDF4',
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  optionChipActive: { backgroundColor: colors.brand },
   optionLabel: {
     ...typography.caption,
-    color: colors.textPrimary,
     textTransform: 'uppercase',
   },
-  optionLabelActive: { color: colors.surface },
   colorSwatch: { width: 30, height: 30, borderRadius: 15 },
-  colorSwatchActive: { borderWidth: 3, borderColor: colors.brandStrong },
   inlineLabel: {
     ...typography.caption,
-    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   dayChip: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#E8EDF4',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -462,10 +706,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  archiveButton: { backgroundColor: '#FCE5E5' },
-  archiveLabel: { ...typography.bodyStrong, color: colors.accentRed },
-  cancelButton: { backgroundColor: '#E8EDF4' },
-  cancelLabel: { ...typography.bodyStrong, color: colors.textPrimary },
-  saveButton: { backgroundColor: colors.brand },
-  saveLabel: { ...typography.bodyStrong, color: colors.surface },
+  archiveLabel: { ...typography.bodyStrong },
+  cancelLabel: { ...typography.bodyStrong },
+  saveLabel: { ...typography.bodyStrong },
 });

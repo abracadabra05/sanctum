@@ -3,9 +3,10 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
-import { colors } from '@/shared/theme';
+import { useTheme } from '@/shared/theme';
 
 export default function IndexRoute() {
+  const theme = useTheme();
   const isReady = useAppStore((state) => state.isReady);
   const hydrate = useAppStore((state) => state.hydrate);
   const hasCompletedOnboarding = useAppStore(
@@ -25,10 +26,10 @@ export default function IndexRoute() {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: colors.backgroundTop,
+          backgroundColor: theme.colors.backgroundTop,
         }}
       >
-        <ActivityIndicator color={colors.brand} size="large" />
+        <ActivityIndicator color={theme.colors.brand} size="large" />
       </View>
     );
   }

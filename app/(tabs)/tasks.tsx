@@ -1,30 +1,128 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
+  LayoutAnimation,
   Modal,
+  PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
 } from 'react-native';
 
-import { buildTaskSections } from '@/features/tasks/selectors';
+import {
+  buildTaskSections,
+  filterTaskListByQuery,
+} from '@/features/tasks/selectors';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
-import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { TaskPriority, TaskRepeatRule } from '@/shared/types/app';
 import { ProgressRing } from '@/shared/ui/progress-ring';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 import { TaskCard } from '@/shared/ui/task-card';
 
-function TasksHeader() {
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function TasksHeader({
+  searchOpen,
+  onOpenSearch,
+  onCloseSearch,
+  query,
+  onChangeQuery,
+}: {
+  searchOpen: boolean;
+  onOpenSearch: () => void;
+  onCloseSearch: () => void;
+  query: string;
+  onChangeQuery: (value: string) => void;
+}) {
+  const theme = useTheme();
+  const searchOpacity = useRef(new Animated.Value(0)).current;
+  const searchTranslate = useRef(new Animated.Value(-8)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(searchOpacity, {
+        toValue: searchOpen ? 1 : 0,
+        duration: searchOpen ? 220 : 160,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(searchTranslate, {
+        toValue: searchOpen ? 0 : -8,
+        duration: searchOpen ? 220 : 160,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [searchOpacity, searchOpen, searchTranslate]);
+
   return (
-    <View style={styles.header}>
-      <Ionicons color={colors.textSecondary} name="menu" size={28} />
-      <Text style={styles.headerTitle}>Sanctum</Text>
-      <Ionicons color={colors.textSecondary} name="search" size={26} />
+    <View style={styles.headerWrap}>
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+          Tasks
+        </Text>
+        <Pressable
+          onPress={searchOpen ? onCloseSearch : onOpenSearch}
+          style={styles.headerIconButton}
+        >
+          <Ionicons
+            color={theme.colors.iconNeutral}
+            name={searchOpen ? 'close' : 'search'}
+            size={24}
+          />
+        </Pressable>
+      </View>
+      {searchOpen ? (
+        <Animated.View
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: theme.colors.surfaceElevated,
+              borderColor: theme.colors.border,
+              opacity: searchOpacity,
+              transform: [{ translateY: searchTranslate }],
+            },
+          ]}
+        >
+          <Ionicons
+            color={theme.colors.textSecondary}
+            name="search"
+            size={18}
+          />
+          <TextInput
+            autoFocus
+            onChangeText={onChangeQuery}
+            placeholder="Search by title, notes, category, priority..."
+            placeholderTextColor={theme.colors.textMuted}
+            style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+            value={query}
+          />
+          {query ? (
+            <Pressable onPress={() => onChangeQuery('')}>
+              <Ionicons
+                color={theme.colors.textMuted}
+                name="close-circle"
+                size={18}
+              />
+            </Pressable>
+          ) : null}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -50,6 +148,9 @@ const createInitialDraft = () => ({
 });
 
 export default function TasksScreen() {
+  const theme = useTheme();
+  const params = useLocalSearchParams<{ compose?: string; search?: string }>();
+  const router = useRouter();
   const isReady = useAppStore((state) => state.isReady);
   const hydrate = useAppStore((state) => state.hydrate);
   const rolloverDayIfNeeded = useAppStore((state) => state.rolloverDayIfNeeded);
@@ -66,7 +167,53 @@ export default function TasksScreen() {
   const archiveTask = useAppStore((state) => state.archiveTask);
   const preferences = useAppStore((state) => state.preferences);
   const [modalOpen, setModalOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [draft, setDraft] = useState(createInitialDraft());
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+
+  const closeSheet = useCallback(() => {
+    Animated.timing(sheetTranslateY, {
+      toValue: 420,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      setModalOpen(false);
+      sheetTranslateY.setValue(0);
+    });
+  }, [sheetTranslateY]);
+
+  const sheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) &&
+          gestureState.dy > 8,
+        onPanResponderMove: (_, gestureState) => {
+          sheetTranslateY.setValue(Math.max(0, gestureState.dy));
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 110 || gestureState.vy > 1.2) {
+            closeSheet();
+            return;
+          }
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 6,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 6,
+          }).start();
+        },
+      }),
+    [closeSheet, sheetTranslateY],
+  );
 
   useEffect(() => {
     if (!isReady) {
@@ -78,10 +225,42 @@ export default function TasksScreen() {
     rolloverDayIfNeeded();
   }, [rolloverDayIfNeeded]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 180);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [debouncedQuery, filter, searchOpen]);
+
   const categories = useMemo(
     () => taskCategories.filter((item) => !item.archived),
     [taskCategories],
   );
+
+  const openCreate = useCallback(() => {
+    setDraft({
+      ...createInitialDraft(),
+      categoryId: categories[0]?.id ?? 'work',
+    });
+    sheetTranslateY.setValue(0);
+    setModalOpen(true);
+  }, [categories, sheetTranslateY]);
+
+  useEffect(() => {
+    if (params.compose === '1') {
+      openCreate();
+      router.replace('/(tabs)/tasks');
+    }
+  }, [openCreate, params.compose, router]);
+
+  useEffect(() => {
+    if (params.search === '1') {
+      setSearchOpen(true);
+      router.replace('/(tabs)/tasks');
+    }
+  }, [params.search, router]);
 
   const sections = useMemo(
     () =>
@@ -94,6 +273,17 @@ export default function TasksScreen() {
       }),
     [categories, filter, preferences.timeFormat, taskCompletions, tasks],
   );
+
+  const searchedSections = useMemo(
+    () => filterTaskListByQuery(sections, debouncedQuery),
+    [debouncedQuery, sections],
+  );
+
+  const searchResults = useMemo(
+    () => searchedSections.flatMap((section) => section.tasks),
+    [searchedSections],
+  );
+
   const focusCompletion = useMemo(() => {
     const todayTasks = tasks.filter((task) => !task.archived);
     if (!todayTasks.length) return 0;
@@ -102,14 +292,6 @@ export default function TasksScreen() {
     ).length;
     return Math.round((completedCount / todayTasks.length) * 100);
   }, [taskCompletions, tasks]);
-
-  const openCreate = () => {
-    setDraft({
-      ...createInitialDraft(),
-      categoryId: categories[0]?.id ?? 'work',
-    });
-    setModalOpen(true);
-  };
 
   const openEdit = (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId);
@@ -125,17 +307,53 @@ export default function TasksScreen() {
       priority: task.priority,
       repeatRule: task.repeatRule,
     });
+    sheetTranslateY.setValue(0);
     setModalOpen(true);
   };
 
+  const showFlatResults = Boolean(debouncedQuery);
+
   return (
     <>
-      <ScreenShell header={<TasksHeader />}>
-        <View style={styles.focusCard}>
-          <Text style={styles.focusEyebrow}>Daily Pulse</Text>
-          <Text style={styles.focusTitle}>Today&apos;s Focus</Text>
-          <Text style={styles.focusBody}>
-            A flexible task system with repeat rules, categories and priorities.
+      <ScreenShell
+        header={
+          <TasksHeader
+            searchOpen={searchOpen}
+            onOpenSearch={() => setSearchOpen(true)}
+            onCloseSearch={() => {
+              setSearchOpen(false);
+              setSearchQuery('');
+            }}
+            query={searchQuery}
+            onChangeQuery={setSearchQuery}
+          />
+        }
+      >
+        <View
+          style={[
+            styles.focusCard,
+            {
+              backgroundColor: theme.colors.surfaceElevated,
+              shadowColor: theme.shadows.card.shadowColor,
+              shadowOffset: theme.shadows.card.shadowOffset,
+              shadowOpacity: theme.shadows.card.shadowOpacity,
+              shadowRadius: theme.shadows.card.shadowRadius,
+              elevation: theme.shadows.card.elevation,
+            },
+          ]}
+        >
+          <Text style={[styles.focusEyebrow, { color: theme.colors.brand }]}>
+            Daily Pulse
+          </Text>
+          <Text
+            style={[styles.focusTitle, { color: theme.colors.textPrimary }]}
+          >
+            Today&apos;s Focus
+          </Text>
+          <Text
+            style={[styles.focusBody, { color: theme.colors.textSecondary }]}
+          >
+            Search, sort and complete your day without visual clutter.
           </Text>
           <ProgressRing
             centerCaption="Done"
@@ -163,12 +381,24 @@ export default function TasksScreen() {
                 <Pressable
                   key={item}
                   onPress={() => setTaskFilter(item)}
-                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    {
+                      backgroundColor: active
+                        ? theme.colors.brand
+                        : theme.colors.surfaceMuted,
+                    },
+                    pressed && styles.filterChipPressed,
+                  ]}
                 >
                   <Text
                     style={[
                       styles.filterLabel,
-                      active && styles.filterLabelActive,
+                      {
+                        color: active
+                          ? theme.colors.surface
+                          : theme.colors.textPrimary,
+                      },
                     ]}
                   >
                     {label}
@@ -179,39 +409,143 @@ export default function TasksScreen() {
           </View>
         </ScrollView>
 
-        {sections.map((section) => (
-          <View key={section.id} style={styles.section}>
+        {showFlatResults ? (
+          <View style={styles.sectionStack}>
             <View style={styles.sectionHeader}>
-              <View
+              <Text
                 style={[
-                  styles.sectionAccent,
-                  { backgroundColor: section.accentColor },
+                  styles.sectionTitle,
+                  { color: theme.colors.textPrimary },
                 ]}
-              />
-              <Text style={styles.sectionTitle}>{section.title}</Text>
+              >
+                Search results
+              </Text>
+              <Text
+                style={[
+                  styles.resultCount,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {searchResults.length} found
+              </Text>
             </View>
-            <View style={styles.sectionStack}>
-              {section.tasks.map((item) => (
+            {searchResults.length ? (
+              searchResults.map((item) => (
                 <TaskCard
                   key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
                   item={item}
+                  onArchive={archiveTask}
                   onEdit={openEdit}
                   onToggle={completeTaskOccurrence}
                 />
-              ))}
-            </View>
+              ))
+            ) : (
+              <View
+                style={[
+                  styles.emptyCard,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.emptyTitle,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  No tasks match that search
+                </Text>
+                <Text
+                  style={[
+                    styles.emptyBody,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Try another phrase or clear the search field.
+                </Text>
+              </View>
+            )}
           </View>
-        ))}
+        ) : (
+          sections.map((section) => (
+            <View key={section.id} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View
+                  style={[
+                    styles.sectionAccent,
+                    { backgroundColor: section.accentColor },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  {section.title}
+                </Text>
+              </View>
+              <View style={styles.sectionStack}>
+                {section.tasks.map((item) => (
+                  <TaskCard
+                    key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
+                    item={item}
+                    onArchive={archiveTask}
+                    onEdit={openEdit}
+                    onToggle={completeTaskOccurrence}
+                  />
+                ))}
+              </View>
+            </View>
+          ))
+        )}
 
-        <Pressable onPress={openCreate} style={styles.fab}>
-          <Ionicons color={colors.surface} name="add" size={38} />
+        <Pressable
+          onPress={openCreate}
+          style={({ pressed }) => [
+            styles.fab,
+            {
+              backgroundColor: theme.colors.brand,
+              shadowColor: theme.shadows.button.shadowColor,
+              shadowOffset: theme.shadows.button.shadowOffset,
+              shadowOpacity: theme.shadows.button.shadowOpacity,
+              shadowRadius: theme.shadows.button.shadowRadius,
+              elevation: theme.shadows.button.elevation,
+            },
+            pressed && styles.fabPressed,
+          ]}
+        >
+          <Ionicons color={theme.colors.surface} name="add" size={34} />
         </Pressable>
       </ScreenShell>
 
       <Modal animationType="slide" transparent visible={modalOpen}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: theme.colors.overlay },
+          ]}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: theme.colors.surfaceElevated,
+                transform: [{ translateY: sheetTranslateY }],
+              },
+            ]}
+          >
+            <View {...sheetPanResponder.panHandlers} style={styles.dragArea}>
+              <View
+                style={[
+                  styles.dragHandle,
+                  { backgroundColor: theme.colors.divider },
+                ]}
+              />
+            </View>
+            <Text
+              style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}
+            >
               {draft.id ? 'Edit task' : 'Create task'}
             </Text>
             <TextInput
@@ -219,7 +553,14 @@ export default function TasksScreen() {
                 setDraft((current) => ({ ...current, title: value }))
               }
               placeholder="Task title"
-              style={styles.input}
+              placeholderTextColor={theme.colors.textMuted}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
               value={draft.title}
             />
             <TextInput
@@ -228,7 +569,15 @@ export default function TasksScreen() {
                 setDraft((current) => ({ ...current, notes: value }))
               }
               placeholder="Notes"
-              style={[styles.input, styles.notesInput]}
+              placeholderTextColor={theme.colors.textMuted}
+              style={[
+                styles.input,
+                styles.notesInput,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
               value={draft.notes}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -242,17 +591,26 @@ export default function TasksScreen() {
                         categoryId: category.id,
                       }))
                     }
-                    style={[
+                    style={({ pressed }) => [
                       styles.filterChip,
-                      draft.categoryId === category.id &&
-                        styles.filterChipActive,
+                      {
+                        backgroundColor:
+                          draft.categoryId === category.id
+                            ? theme.colors.brand
+                            : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.filterChipPressed,
                     ]}
                   >
                     <Text
                       style={[
                         styles.filterLabel,
-                        draft.categoryId === category.id &&
-                          styles.filterLabelActive,
+                        {
+                          color:
+                            draft.categoryId === category.id
+                              ? theme.colors.surface
+                              : theme.colors.textPrimary,
+                        },
                       ]}
                     >
                       {category.label}
@@ -267,7 +625,15 @@ export default function TasksScreen() {
                   setDraft((current) => ({ ...current, dueDate: value }))
                 }
                 placeholder="YYYY-MM-DD"
-                style={[styles.input, styles.inlineInput]}
+                placeholderTextColor={theme.colors.textMuted}
+                style={[
+                  styles.input,
+                  styles.inlineInput,
+                  {
+                    backgroundColor: theme.colors.input,
+                    color: theme.colors.textPrimary,
+                  },
+                ]}
                 value={draft.dueDate}
               />
               <TextInput
@@ -275,7 +641,15 @@ export default function TasksScreen() {
                   setDraft((current) => ({ ...current, dueTime: value }))
                 }
                 placeholder="HH:MM"
-                style={[styles.input, styles.inlineInput]}
+                placeholderTextColor={theme.colors.textMuted}
+                style={[
+                  styles.input,
+                  styles.inlineInput,
+                  {
+                    backgroundColor: theme.colors.input,
+                    color: theme.colors.textPrimary,
+                  },
+                ]}
                 value={draft.dueTime}
               />
             </View>
@@ -287,15 +661,26 @@ export default function TasksScreen() {
                     onPress={() =>
                       setDraft((current) => ({ ...current, priority }))
                     }
-                    style={[
+                    style={({ pressed }) => [
                       styles.filterChip,
-                      draft.priority === priority && styles.filterChipActive,
+                      {
+                        backgroundColor:
+                          draft.priority === priority
+                            ? theme.colors.brand
+                            : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.filterChipPressed,
                     ]}
                   >
                     <Text
                       style={[
                         styles.filterLabel,
-                        draft.priority === priority && styles.filterLabelActive,
+                        {
+                          color:
+                            draft.priority === priority
+                              ? theme.colors.surface
+                              : theme.colors.textPrimary,
+                        },
                       ]}
                     >
                       {priority}
@@ -315,17 +700,26 @@ export default function TasksScreen() {
                         repeatRule: option.value,
                       }))
                     }
-                    style={[
+                    style={({ pressed }) => [
                       styles.filterChip,
-                      draft.repeatRule.type === option.value.type &&
-                        styles.filterChipActive,
+                      {
+                        backgroundColor:
+                          draft.repeatRule.type === option.value.type
+                            ? theme.colors.brand
+                            : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.filterChipPressed,
                     ]}
                   >
                     <Text
                       style={[
                         styles.filterLabel,
-                        draft.repeatRule.type === option.value.type &&
-                          styles.filterLabelActive,
+                        {
+                          color:
+                            draft.repeatRule.type === option.value.type
+                              ? theme.colors.surface
+                              : theme.colors.textPrimary,
+                        },
                       ]}
                     >
                       {option.label}
@@ -339,25 +733,54 @@ export default function TasksScreen() {
                 <Pressable
                   onPress={() => {
                     archiveTask(draft.id!);
-                    setModalOpen(false);
+                    closeSheet();
                   }}
-                  style={[styles.bottomButton, styles.archiveButton]}
+                  style={({ pressed }) => [
+                    styles.bottomButton,
+                    { backgroundColor: theme.colors.accentRedSoft },
+                    pressed && styles.buttonPressed,
+                  ]}
                 >
-                  <Text style={styles.archiveLabel}>Archive</Text>
+                  <Text
+                    style={[
+                      styles.archiveLabel,
+                      { color: theme.colors.accentRed },
+                    ]}
+                  >
+                    Archive
+                  </Text>
                 </Pressable>
               ) : null}
               <Pressable
-                onPress={() => setModalOpen(false)}
-                style={[styles.bottomButton, styles.cancelButton]}
+                onPress={closeSheet}
+                style={({ pressed }) => [
+                  styles.bottomButton,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                  pressed && styles.buttonPressed,
+                ]}
               >
-                <Text style={styles.cancelLabel}>Close</Text>
+                <Text
+                  style={[
+                    styles.cancelLabel,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Close
+                </Text>
               </Pressable>
               <Pressable
                 onPress={() => {
                   if (!draft.title.trim()) return;
                   if (draft.id) {
-                    const { id, ...patch } = draft;
-                    updateTask(draft.id, patch);
+                    updateTask(draft.id, {
+                      title: draft.title.trim(),
+                      notes: draft.notes,
+                      categoryId: draft.categoryId,
+                      dueDate: draft.dueDate,
+                      dueTime: draft.dueTime,
+                      priority: draft.priority,
+                      repeatRule: draft.repeatRule,
+                    });
                   } else {
                     createTask({
                       title: draft.title.trim(),
@@ -369,16 +792,22 @@ export default function TasksScreen() {
                       repeatRule: draft.repeatRule,
                     });
                   }
-                  setModalOpen(false);
+                  closeSheet();
                 }}
-                style={[styles.bottomButton, styles.saveButton]}
+                style={({ pressed }) => [
+                  styles.bottomButton,
+                  { backgroundColor: theme.colors.brand },
+                  pressed && styles.buttonPressed,
+                ]}
               >
-                <Text style={styles.saveLabel}>
+                <Text
+                  style={[styles.saveLabel, { color: theme.colors.surface }]}
+                >
                   {draft.id ? 'Save' : 'Create'}
                 </Text>
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </>
@@ -386,82 +815,120 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
+  headerWrap: {
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerTitle: { fontSize: 23, fontWeight: '700', color: colors.textPrimary },
+  headerTitle: { fontSize: 24, fontWeight: '700' },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+  },
   focusCard: {
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.surface,
     borderRadius: radii.card,
     paddingHorizontal: spacing.xl,
-    paddingVertical: 30,
-    ...shadows.card,
+    paddingVertical: 28,
   },
-  focusEyebrow: { ...typography.eyebrow, color: colors.brand },
-  focusTitle: { ...typography.h1, fontSize: 30, color: colors.textPrimary },
+  focusEyebrow: { ...typography.eyebrow },
+  focusTitle: { ...typography.h1, fontSize: 30 },
   focusBody: {
     ...typography.body,
-    color: colors.textSecondary,
     textAlign: 'center',
   },
   filterRow: { flexDirection: 'row', gap: spacing.sm },
   optionRow: { flexDirection: 'row', gap: spacing.sm },
   filterChip: {
     borderRadius: radii.pill,
-    backgroundColor: '#E8EDF4',
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
-  filterChipActive: { backgroundColor: colors.brand },
-  filterLabel: { ...typography.bodyStrong, color: '#253448' },
-  filterLabelActive: { color: colors.surface },
+  filterChipPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  filterLabel: { ...typography.bodyStrong },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.md,
   },
   sectionAccent: { width: 6, height: 30, borderRadius: 999 },
-  sectionTitle: { ...typography.h2, color: colors.textPrimary },
+  sectionTitle: { ...typography.h2 },
+  resultCount: { ...typography.caption },
   sectionStack: { gap: spacing.md },
+  emptyCard: {
+    borderRadius: radii.card,
+    padding: spacing.xl,
+    gap: spacing.xs,
+  },
+  emptyTitle: { ...typography.bodyStrong },
+  emptyBody: { ...typography.body },
   fab: {
     position: 'absolute',
     right: spacing.xl,
     bottom: 24,
-    width: 72,
-    height: 72,
-    borderRadius: 24,
+    width: 68,
+    height: 68,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand,
-    ...shadows.button,
+  },
+  fabPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.97 }],
   },
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15,23,42,0.28)',
   },
   sheet: {
-    backgroundColor: colors.surface,
     borderTopLeftRadius: radii.card,
     borderTopRightRadius: radii.card,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
     gap: spacing.md,
   },
-  sheetTitle: { ...typography.h2, color: colors.textPrimary },
+  dragArea: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  dragHandle: {
+    width: 52,
+    height: 5,
+    borderRadius: 999,
+  },
+  sheetTitle: { ...typography.h2 },
   input: {
     borderRadius: 18,
-    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
-    color: colors.textPrimary,
   },
   notesInput: { minHeight: 88, textAlignVertical: 'top' },
   inlineRow: { flexDirection: 'row', gap: spacing.sm },
@@ -474,10 +941,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  archiveButton: { backgroundColor: '#FCE5E5' },
-  archiveLabel: { ...typography.bodyStrong, color: colors.accentRed },
-  cancelButton: { backgroundColor: '#E8EDF4' },
-  cancelLabel: { ...typography.bodyStrong, color: colors.textPrimary },
-  saveButton: { backgroundColor: colors.brand },
-  saveLabel: { ...typography.bodyStrong, color: colors.surface },
+  buttonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.985 }],
+  },
+  archiveLabel: { ...typography.bodyStrong },
+  cancelLabel: { ...typography.bodyStrong },
+  saveLabel: { ...typography.bodyStrong },
 });

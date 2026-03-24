@@ -79,11 +79,15 @@ interface AppStore extends AppState {
   setNotificationPreferences: (input: NotificationPreferences) => Promise<void>;
   setDisplayPreferences: (
     input: Partial<
-      Pick<UserPreferences, 'timeFormat' | 'weekStartsOn' | 'displayName'>
+      Pick<
+        UserPreferences,
+        'timeFormat' | 'weekStartsOn' | 'displayName' | 'themeMode'
+      >
     >,
   ) => void;
   setTaskFilter: (filter: TaskFilter) => void;
   completeOnboarding: (input: OnboardingInput) => Promise<void>;
+  setAppTourSeen: (seen: boolean) => void;
   importAppState: (payload?: unknown) => Promise<boolean>;
   resetAllData: () => Promise<void>;
 }
@@ -148,7 +152,7 @@ const ensureDayState = (state: AppState): AppState => {
 
 const initialState = ensureDayState(createSeedState());
 
-export const useAppStore = create<AppStore>((set, get) => ({
+export const useAppStore = create<AppStore>((set) => ({
   ...initialState,
   isReady: false,
   activeTaskFilter: 'all',
@@ -448,12 +452,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
           dailyWaterTargetMl: input.dailyWaterTargetMl,
           notificationsEnabled,
           hasCompletedOnboarding: true,
+          hasSeenAppTour: false,
         },
       };
       void persistSnapshot(nextState);
       return nextState;
     });
   },
+  setAppTourSeen: (seen) =>
+    set((state) => {
+      const nextState = {
+        ...buildSnapshot(state),
+        preferences: {
+          ...state.preferences,
+          hasSeenAppTour: seen,
+        },
+      };
+      void persistSnapshot(nextState);
+      return nextState;
+    }),
   importAppState: async (payload) => {
     const imported = payload
       ? importAppStatePayload(payload)

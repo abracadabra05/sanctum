@@ -90,8 +90,10 @@ export const userPreferencesSchema = z.object({
   weekStartsOn: weekdaySchema,
   notificationsEnabled: z.boolean(),
   hasCompletedOnboarding: z.boolean(),
+  hasSeenAppTour: z.boolean().default(false),
   waterReminderIntervalMinutes: z.number().int().positive().optional(),
   waterReminderCutoffTime: z.string().optional(),
+  themeMode: z.enum(['system', 'light', 'dark']).default('system'),
 });
 
 export const appStateSchema = z.object({

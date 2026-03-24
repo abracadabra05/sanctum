@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
-import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 const palette = [
@@ -22,6 +22,7 @@ const palette = [
 ];
 
 export default function CategoriesSettingsScreen() {
+  const theme = useTheme();
   const categories = useAppStore((state) => state.taskCategories);
   const createTaskCategory = useAppStore((state) => state.createTaskCategory);
   const updateTaskCategory = useAppStore((state) => state.updateTaskCategory);
@@ -31,12 +32,33 @@ export default function CategoriesSettingsScreen() {
 
   return (
     <ScreenShell>
-      <View style={styles.card}>
-        <Text style={styles.title}>Task categories</Text>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            shadowColor: theme.shadows.card.shadowColor,
+            shadowOffset: theme.shadows.card.shadowOffset,
+            shadowOpacity: theme.shadows.card.shadowOpacity,
+            shadowRadius: theme.shadows.card.shadowRadius,
+            elevation: theme.shadows.card.elevation,
+          },
+        ]}
+      >
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          Task categories
+        </Text>
         <TextInput
           onChangeText={setLabel}
           placeholder="New category"
-          style={styles.input}
+          placeholderTextColor={theme.colors.textMuted}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.input,
+              color: theme.colors.textPrimary,
+            },
+          ]}
           value={label}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -48,7 +70,10 @@ export default function CategoriesSettingsScreen() {
                 style={[
                   styles.swatch,
                   { backgroundColor: item },
-                  color === item && styles.swatchActive,
+                  color === item && {
+                    borderWidth: 3,
+                    borderColor: theme.colors.brand,
+                  },
                 ]}
               />
             ))}
@@ -61,17 +86,48 @@ export default function CategoriesSettingsScreen() {
               setLabel('');
             }
           }}
-          style={styles.button}
+          style={[
+            styles.button,
+            {
+              backgroundColor: theme.colors.brand,
+              shadowColor: theme.shadows.button.shadowColor,
+              shadowOffset: theme.shadows.button.shadowOffset,
+              shadowOpacity: theme.shadows.button.shadowOpacity,
+              shadowRadius: theme.shadows.button.shadowRadius,
+              elevation: theme.shadows.button.elevation,
+            },
+          ]}
         >
-          <Text style={styles.buttonLabel}>Create category</Text>
+          <Text style={[styles.buttonLabel, { color: theme.colors.surface }]}>
+            Create category
+          </Text>
         </Pressable>
       </View>
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            shadowColor: theme.shadows.card.shadowColor,
+            shadowOffset: theme.shadows.card.shadowOffset,
+            shadowOpacity: theme.shadows.card.shadowOpacity,
+            shadowRadius: theme.shadows.card.shadowRadius,
+            elevation: theme.shadows.card.elevation,
+          },
+        ]}
+      >
         {categories
           .filter((item) => !item.archived)
           .map((category) => (
             <View key={category.id} style={styles.row}>
-              <Text style={styles.categoryText}>{category.label}</Text>
+              <Text
+                style={[
+                  styles.categoryText,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                {category.label}
+              </Text>
               {category.kind === 'custom' ? (
                 <View style={styles.rowActions}>
                   <Pressable
@@ -81,16 +137,29 @@ export default function CategoriesSettingsScreen() {
                       })
                     }
                   >
-                    <Text style={styles.link}>Quick rename</Text>
+                    <Text style={[styles.link, { color: theme.colors.brand }]}>
+                      Quick rename
+                    </Text>
                   </Pressable>
                   <Pressable
                     onPress={() => archiveTaskCategory(category.id, 'personal')}
                   >
-                    <Text style={styles.archive}>Archive</Text>
+                    <Text
+                      style={[
+                        styles.archive,
+                        { color: theme.colors.accentRed },
+                      ]}
+                    >
+                      Archive
+                    </Text>
                   </Pressable>
                 </View>
               ) : (
-                <Text style={styles.preset}>Preset</Text>
+                <Text
+                  style={[styles.preset, { color: theme.colors.textSecondary }]}
+                >
+                  Preset
+                </Text>
               )}
             </View>
           ))}
@@ -103,41 +172,34 @@ const styles = StyleSheet.create({
   card: {
     marginTop: spacing.xl,
     gap: spacing.md,
-    backgroundColor: colors.surface,
     borderRadius: radii.card,
     padding: spacing.xl,
-    ...shadows.card,
   },
-  title: { ...typography.h1, color: colors.textPrimary },
+  title: { ...typography.h1 },
   input: {
     borderRadius: 18,
-    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
-    color: colors.textPrimary,
   },
   swatches: { flexDirection: 'row', gap: spacing.sm },
   swatch: { width: 30, height: 30, borderRadius: 15 },
-  swatchActive: { borderWidth: 3, borderColor: colors.brand },
   button: {
     minHeight: 54,
     borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand,
-    ...shadows.button,
   },
-  buttonLabel: { ...typography.bodyStrong, color: colors.surface },
+  buttonLabel: { ...typography.bodyStrong },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  categoryText: { ...typography.bodyStrong, color: colors.textPrimary },
+  categoryText: { ...typography.bodyStrong },
   rowActions: { flexDirection: 'row', gap: spacing.md },
-  link: { ...typography.caption, color: colors.brand },
-  archive: { ...typography.caption, color: colors.accentRed },
-  preset: { ...typography.caption, color: colors.textSecondary },
+  link: { ...typography.caption },
+  archive: { ...typography.caption },
+  preset: { ...typography.caption },
 });

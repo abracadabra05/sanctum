@@ -6,7 +6,6 @@ import {
   startOfDay,
   toDateKey,
 } from '@/shared/lib/date';
-import { colors } from '@/shared/theme';
 import type {
   TaskCategoryEntity,
   TaskCompletion,
@@ -43,21 +42,21 @@ export const doesTaskOccurOnDate = (task: TaskItem, dateKey: string) => {
     case 'none':
       return dueKey === dateKey;
     case 'daily':
-      return fromDateKey(dateKey).getTime() >= startOfDay(dueDate).getTime();
+      return targetDate.getTime() >= startOfDay(dueDate).getTime();
     case 'weekdays':
       return (
-        fromDateKey(dateKey).getTime() >= startOfDay(dueDate).getTime() &&
+        targetDate.getTime() >= startOfDay(dueDate).getTime() &&
         targetWeekday >= 1 &&
         targetWeekday <= 5
       );
     case 'weekly':
       return (
-        fromDateKey(dateKey).getTime() >= startOfDay(dueDate).getTime() &&
+        targetDate.getTime() >= startOfDay(dueDate).getTime() &&
         task.repeatRule.day === targetWeekday
       );
     case 'custom':
       return (
-        fromDateKey(dateKey).getTime() >= startOfDay(dueDate).getTime() &&
+        targetDate.getTime() >= startOfDay(dueDate).getTime() &&
         task.repeatRule.days.includes(targetWeekday)
       );
     default:
@@ -93,6 +92,14 @@ const buildViewModel = (
     occurrenceDate,
     completions,
   );
+  const statusText = completion
+    ? 'completed done'
+    : occurrenceDate < toDateKey(new Date())
+      ? 'overdue'
+      : occurrenceDate === toDateKey(new Date())
+        ? 'today'
+        : 'upcoming';
+
   return {
     task,
     category,
@@ -104,6 +111,15 @@ const buildViewModel = (
       ),
       isCompleted: Boolean(completion),
     },
+    searchText: [
+      task.title,
+      task.notes,
+      category.label,
+      task.priority,
+      statusText,
+    ]
+      .join(' ')
+      .toLowerCase(),
   };
 };
 
@@ -179,12 +195,12 @@ export const buildTaskSections = ({
               : 'Completed',
       accentColor:
         id === 'overdue'
-          ? colors.accentRed
+          ? '#C92B2B'
           : id === 'today'
-            ? colors.brand
+            ? '#0F6DCA'
             : id === 'completed'
               ? '#8FB4E1'
-              : colors.accentGray,
+              : '#DDE5F0',
       tasks: grouped[id],
     }))
     .filter((section) => section.tasks.length > 0)
@@ -195,6 +211,25 @@ export const buildTaskSections = ({
           ? section.id === 'overdue'
           : true,
     );
+};
+
+export const filterTaskListByQuery = (
+  sections: TaskListSection[],
+  query: string,
+): TaskListSection[] => {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return sections;
+  }
+
+  return sections
+    .map((section) => ({
+      ...section,
+      tasks: section.tasks.filter((item) =>
+        item.searchText?.includes(normalizedQuery),
+      ),
+    }))
+    .filter((section) => section.tasks.length > 0);
 };
 
 export const getTaskCompletion = (

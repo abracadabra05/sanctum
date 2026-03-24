@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
-import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 export default function WaterSettingsScreen() {
+  const theme = useTheme();
   const preferences = useAppStore((state) => state.preferences);
   const setDailyWaterTarget = useAppStore((state) => state.setDailyWaterTarget);
   const setQuickWaterAmounts = useAppStore(
@@ -16,17 +17,51 @@ export default function WaterSettingsScreen() {
 
   return (
     <ScreenShell>
-      <View style={styles.card}>
-        <Text style={styles.title}>Water</Text>
-        <Text style={styles.label}>Daily target</Text>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            shadowColor: theme.shadows.card.shadowColor,
+            shadowOffset: theme.shadows.card.shadowOffset,
+            shadowOpacity: theme.shadows.card.shadowOpacity,
+            shadowRadius: theme.shadows.card.shadowRadius,
+            elevation: theme.shadows.card.elevation,
+          },
+        ]}
+      >
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          Water
+        </Text>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          Daily target
+        </Text>
         <TextInput
           keyboardType="number-pad"
           onChangeText={setTarget}
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.input,
+              color: theme.colors.textPrimary,
+            },
+          ]}
           value={target}
         />
-        <Text style={styles.label}>Quick amounts</Text>
-        <TextInput onChangeText={setQuick} style={styles.input} value={quick} />
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          Quick amounts
+        </Text>
+        <TextInput
+          onChangeText={setQuick}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.input,
+              color: theme.colors.textPrimary,
+            },
+          ]}
+          value={quick}
+        />
         <Pressable
           onPress={() => {
             setDailyWaterTarget(
@@ -39,9 +74,21 @@ export default function WaterSettingsScreen() {
                 .filter((item) => !Number.isNaN(item) && item > 0),
             );
           }}
-          style={styles.button}
+          style={[
+            styles.button,
+            {
+              backgroundColor: theme.colors.brand,
+              shadowColor: theme.shadows.button.shadowColor,
+              shadowOffset: theme.shadows.button.shadowOffset,
+              shadowOpacity: theme.shadows.button.shadowOpacity,
+              shadowRadius: theme.shadows.button.shadowRadius,
+              elevation: theme.shadows.button.elevation,
+            },
+          ]}
         >
-          <Text style={styles.buttonLabel}>Save water settings</Text>
+          <Text style={[styles.buttonLabel, { color: theme.colors.surface }]}>
+            Save water settings
+          </Text>
         </Pressable>
       </View>
     </ScreenShell>
@@ -52,32 +99,25 @@ const styles = StyleSheet.create({
   card: {
     marginTop: spacing.xl,
     gap: spacing.md,
-    backgroundColor: colors.surface,
     borderRadius: radii.card,
     padding: spacing.xl,
-    ...shadows.card,
   },
-  title: { ...typography.h1, color: colors.textPrimary },
+  title: { ...typography.h1 },
   label: {
     ...typography.caption,
-    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   input: {
     borderRadius: 18,
-    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
-    color: colors.textPrimary,
   },
   button: {
     minHeight: 54,
     borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand,
-    ...shadows.button,
   },
-  buttonLabel: { ...typography.bodyStrong, color: colors.surface },
+  buttonLabel: { ...typography.bodyStrong },
 });

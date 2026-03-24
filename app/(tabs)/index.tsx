@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
@@ -15,30 +16,47 @@ import { getHydrationProgress } from '@/features/hydration/selectors';
 import { getTaskCompletionRecord } from '@/features/tasks/selectors';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
-import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
+import { AppMenu } from '@/shared/ui/app-menu';
 import { HabitCard } from '@/shared/ui/habit-card';
 import { ProgressRing } from '@/shared/ui/progress-ring';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 import { SectionHeading } from '@/shared/ui/section-heading';
 import { TaskCard } from '@/shared/ui/task-card';
 
-function DashboardHeader() {
+function DashboardHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
+  const theme = useTheme();
+
   return (
     <View style={styles.header}>
       <View style={styles.brandRow}>
         <View style={styles.avatarWrap}>
-          <View style={styles.avatarInner}>
-            <Ionicons color={colors.brand} name="water-outline" size={18} />
+          <View
+            style={[
+              styles.avatarInner,
+              { backgroundColor: theme.colors.surfaceElevated },
+            ]}
+          >
+            <Ionicons
+              color={theme.colors.brand}
+              name="water-outline"
+              size={18}
+            />
           </View>
         </View>
-        <Text style={styles.brand}>Sanctum</Text>
+        <Text style={[styles.brand, { color: theme.colors.brandStrong }]}>
+          Sanctum
+        </Text>
       </View>
-      <Ionicons color={colors.textSecondary} name="settings" size={28} />
+      <Pressable onPress={onOpenMenu} style={styles.menuButton}>
+        <Ionicons color={theme.colors.iconNeutral} name="menu" size={28} />
+      </Pressable>
     </View>
   );
 }
 
 export default function DashboardScreen() {
+  const theme = useTheme();
   const isReady = useAppStore((state) => state.isReady);
   const hydrate = useAppStore((state) => state.hydrate);
   const rolloverDayIfNeeded = useAppStore((state) => state.rolloverDayIfNeeded);
@@ -61,6 +79,7 @@ export default function DashboardScreen() {
     String(preferences.quickWaterAmounts[0] ?? 180),
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [targetDraft, setTargetDraft] = useState(
     String(preferences.dailyWaterTargetMl),
   );
@@ -125,14 +144,30 @@ export default function DashboardScreen() {
 
   return (
     <>
-      <ScreenShell header={<DashboardHeader />}>
-        <SectionHeading
-          actionLabel={`${(hydrationProgress.consumedMl / 1000).toFixed(1)}L / ${(preferences.dailyWaterTargetMl / 1000).toFixed(1)}L`}
-          eyebrow="Hydration"
-          title="Stay Fluid"
-        />
+      <ScreenShell
+        header={<DashboardHeader onOpenMenu={() => setMenuOpen(true)} />}
+      >
+        <View>
+          <SectionHeading
+            actionLabel={`${(hydrationProgress.consumedMl / 1000).toFixed(1)}L / ${(preferences.dailyWaterTargetMl / 1000).toFixed(1)}L`}
+            eyebrow="Hydration"
+            title="Stay Fluid"
+          />
+        </View>
 
-        <View style={styles.heroCard}>
+        <View
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: theme.colors.surfaceElevated,
+              shadowColor: theme.shadows.card.shadowColor,
+              shadowOffset: theme.shadows.card.shadowOffset,
+              shadowOpacity: theme.shadows.card.shadowOpacity,
+              shadowRadius: theme.shadows.card.shadowRadius,
+              elevation: theme.shadows.card.elevation,
+            },
+          ]}
+        >
           <ProgressRing
             centerCaption={
               hydrationProgress.isGoalReached ? 'Goal reached' : undefined
@@ -146,7 +181,9 @@ export default function DashboardScreen() {
             successState={hydrationProgress.isGoalReached}
             variant="water"
           />
-          <Text style={styles.waterSummary}>
+          <Text
+            style={[styles.waterSummary, { color: theme.colors.textSecondary }]}
+          >
             {hydrationProgress.hasExceededGoal
               ? `+${hydrationProgress.overflowMl} ml above goal`
               : `${Math.max(0, preferences.dailyWaterTargetMl - hydrationProgress.consumedMl)} ml left today`}
@@ -158,15 +195,25 @@ export default function DashboardScreen() {
                 onPress={() => addWater(amount, 'quick')}
                 style={[
                   styles.cta,
-                  index === 0 ? styles.ctaPrimary : styles.ctaSecondary,
+                  index === 0
+                    ? {
+                        backgroundColor: theme.colors.brand,
+                        shadowColor: theme.shadows.button.shadowColor,
+                        shadowOffset: theme.shadows.button.shadowOffset,
+                        shadowOpacity: theme.shadows.button.shadowOpacity,
+                        shadowRadius: theme.shadows.button.shadowRadius,
+                        elevation: theme.shadows.button.elevation,
+                      }
+                    : { backgroundColor: theme.colors.surfaceMuted },
                 ]}
               >
                 <Text
                   style={[
                     styles.ctaLabel,
-                    index === 0
-                      ? styles.ctaLabelPrimary
-                      : styles.ctaLabelSecondary,
+                    {
+                      color:
+                        index === 0 ? theme.colors.surface : theme.colors.brand,
+                    },
                   ]}
                 >
                   +{amount}ml
@@ -175,19 +222,36 @@ export default function DashboardScreen() {
             ))}
           </View>
           <View style={styles.customRow}>
-            <Text style={styles.customHint}>Custom amount</Text>
+            <Text
+              style={[styles.customHint, { color: theme.colors.textSecondary }]}
+            >
+              Custom amount
+            </Text>
             <View style={styles.customActions}>
               <TextInput
                 keyboardType="number-pad"
                 onChangeText={setCustomWater}
-                style={styles.customInput}
+                style={[
+                  styles.customInput,
+                  {
+                    backgroundColor: theme.colors.input,
+                    color: theme.colors.textPrimary,
+                  },
+                ]}
                 value={customWater}
               />
               <Pressable
                 onPress={() => addWater(Number(customWater) || 0, 'custom')}
-                style={styles.addSmallButton}
+                style={[
+                  styles.addSmallButton,
+                  { backgroundColor: theme.colors.brandSoft },
+                ]}
               >
-                <Text style={styles.addSmallLabel}>Add</Text>
+                <Text
+                  style={[styles.addSmallLabel, { color: theme.colors.brand }]}
+                >
+                  Add
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -195,13 +259,35 @@ export default function DashboardScreen() {
             onPress={() => setSettingsOpen(true)}
             style={styles.secondaryLink}
           >
-            <Text style={styles.secondaryLinkLabel}>Hydration settings</Text>
+            <Text
+              style={[styles.secondaryLinkLabel, { color: theme.colors.brand }]}
+            >
+              Hydration settings
+            </Text>
           </Pressable>
           <View style={styles.entryList}>
             {hydrationToday.entries.slice(0, 4).map((entry) => (
-              <View key={entry.id} style={styles.entryRow}>
-                <Text style={styles.entryAmount}>+{entry.amountMl} ml</Text>
-                <Text style={styles.entryMeta}>
+              <View
+                key={entry.id}
+                style={[
+                  styles.entryRow,
+                  { borderBottomColor: theme.colors.divider },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.entryAmount,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  +{entry.amountMl} ml
+                </Text>
+                <Text
+                  style={[
+                    styles.entryMeta,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
                   {new Date(entry.timestamp).toLocaleTimeString([], {
                     hour: 'numeric',
                     minute: '2-digit',
@@ -213,11 +299,13 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <SectionHeading
-          actionLabel="Today"
-          eyebrow="Productivity"
-          title="Daily To-Do"
-        />
+        <View>
+          <SectionHeading
+            eyebrow="Productivity"
+            title="Daily To-Do"
+            actionLabel="Today"
+          />
+        </View>
         <View style={styles.stack}>
           {todayTasks.map((item) => (
             <TaskCard
@@ -228,43 +316,92 @@ export default function DashboardScreen() {
           ))}
         </View>
 
-        <SectionHeading eyebrow="Consistency" title="Habit Streaks" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.habitRow}>
-            {habitCards.map((habit) => (
-              <HabitCard
-                habit={habit}
-                key={habit.id}
-                onPress={() => markHabitComplete(habit.id, todayKey)}
-              />
-            ))}
-          </View>
-        </ScrollView>
+        <View>
+          <SectionHeading eyebrow="Consistency" title="Habit Streaks" />
+        </View>
+        <View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.habitRow}>
+              {habitCards.map((habit) => (
+                <HabitCard
+                  habit={habit}
+                  key={habit.id}
+                  onPress={() => markHabitComplete(habit.id, todayKey)}
+                />
+              ))}
+            </View>
+          </ScrollView>
+        </View>
       </ScreenShell>
 
+      <AppMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onSearchTasks={() => router.push('/(tabs)/tasks?search=1')}
+        onCreateTask={() => router.push('/(tabs)/tasks?compose=1')}
+        onCreateHabit={() => router.push('/(tabs)/habits?compose=1')}
+        onOpenData={() => router.push('/settings/data')}
+        onOpenProfile={() => router.push('/(tabs)/profile')}
+      />
+
       <Modal animationType="slide" transparent visible={settingsOpen}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Hydration preferences</Text>
-            <Text style={styles.label}>Daily target (ml)</Text>
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: theme.colors.overlay },
+          ]}
+        >
+          <View
+            style={[
+              styles.sheet,
+              { backgroundColor: theme.colors.surfaceElevated },
+            ]}
+          >
+            <Text
+              style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}
+            >
+              Hydration preferences
+            </Text>
+            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+              Daily target (ml)
+            </Text>
             <TextInput
               keyboardType="number-pad"
               onChangeText={setTargetDraft}
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
               value={targetDraft}
             />
-            <Text style={styles.label}>Quick amounts (comma separated)</Text>
+            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+              Quick amounts (comma separated)
+            </Text>
             <TextInput
               onChangeText={setQuickDraft}
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
               value={quickDraft}
             />
             <View style={styles.sheetActions}>
               <Pressable
                 onPress={() => setSettingsOpen(false)}
-                style={[styles.cta, styles.ctaSecondary]}
+                style={[
+                  styles.cta,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                ]}
               >
-                <Text style={[styles.ctaLabel, styles.ctaLabelSecondary]}>
+                <Text
+                  style={[styles.ctaLabel, { color: theme.colors.textPrimary }]}
+                >
                   Close
                 </Text>
               </Pressable>
@@ -282,9 +419,11 @@ export default function DashboardScreen() {
                   }
                   setSettingsOpen(false);
                 }}
-                style={[styles.cta, styles.ctaPrimary]}
+                style={[styles.cta, { backgroundColor: theme.colors.brand }]}
               >
-                <Text style={[styles.ctaLabel, styles.ctaLabelPrimary]}>
+                <Text
+                  style={[styles.ctaLabel, { color: theme.colors.surface }]}
+                >
                   Save
                 </Text>
               </Pressable>
@@ -319,22 +458,24 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brand: { fontSize: 26, fontWeight: '700', color: '#245BDB' },
+  brand: { fontSize: 26, fontWeight: '700' },
+  menuButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   heroCard: {
     alignItems: 'center',
     gap: spacing.md,
     padding: spacing.xl,
-    backgroundColor: colors.surface,
     borderRadius: radii.card,
-    ...shadows.card,
   },
   waterSummary: {
-    ...typography.bodyStrong,
-    color: colors.textSecondary,
+    ...typography.body,
     textAlign: 'center',
   },
   buttonRow: { width: '100%', flexDirection: 'row', gap: spacing.md },
@@ -345,15 +486,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ctaPrimary: { backgroundColor: colors.brand, ...shadows.button },
-  ctaSecondary: { backgroundColor: '#E8EDF4' },
   ctaLabel: { ...typography.bodyStrong },
-  ctaLabelPrimary: { color: colors.surface },
-  ctaLabelSecondary: { color: colors.brand },
   customRow: { width: '100%', gap: spacing.sm },
   customHint: {
     ...typography.caption,
-    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   customActions: {
@@ -364,24 +500,20 @@ const styles = StyleSheet.create({
   customInput: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 10,
     textAlign: 'center',
     ...typography.bodyStrong,
-    color: colors.textPrimary,
   },
   addSmallButton: {
     borderRadius: 16,
-    backgroundColor: colors.brandSoft,
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
-  addSmallLabel: { ...typography.bodyStrong, color: colors.brand },
+  addSmallLabel: { ...typography.bodyStrong },
   secondaryLink: { alignSelf: 'flex-start' },
   secondaryLinkLabel: {
     ...typography.caption,
-    color: colors.brand,
     textTransform: 'uppercase',
   },
   entryList: { width: '100%', gap: spacing.xs },
@@ -389,36 +521,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
+    paddingBottom: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  entryAmount: { ...typography.bodyStrong, color: colors.textPrimary },
-  entryMeta: { ...typography.caption, color: colors.textSecondary },
+  entryAmount: { ...typography.bodyStrong },
+  entryMeta: { ...typography.caption },
   stack: { gap: spacing.md },
   habitRow: { flexDirection: 'row', gap: spacing.md },
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15,23,42,0.28)',
   },
   sheet: {
-    backgroundColor: colors.surface,
     borderTopLeftRadius: radii.card,
     borderTopRightRadius: radii.card,
     padding: spacing.xl,
     gap: spacing.md,
   },
-  sheetTitle: { ...typography.h2, color: colors.textPrimary },
+  sheetTitle: { ...typography.h2 },
   label: {
     ...typography.caption,
-    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   input: {
     borderRadius: 18,
-    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
-    color: colors.textPrimary,
   },
   sheetActions: { flexDirection: 'row', gap: spacing.md },
 });

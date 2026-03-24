@@ -2,10 +2,11 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { exportStateToJson } from '@/shared/services/data-transfer';
 import { useAppStore } from '@/shared/store/app-store';
-import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 export default function DataSettingsScreen() {
+  const theme = useTheme();
   const schemaVersion = useAppStore((store) => store.schemaVersion);
   const hydrationToday = useAppStore((store) => store.hydrationToday);
   const hydrationHistory = useAppStore((store) => store.hydrationHistory);
@@ -19,8 +20,22 @@ export default function DataSettingsScreen() {
 
   return (
     <ScreenShell>
-      <View style={styles.card}>
-        <Text style={styles.title}>Data</Text>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            shadowColor: theme.shadows.card.shadowColor,
+            shadowOffset: theme.shadows.card.shadowOffset,
+            shadowOpacity: theme.shadows.card.shadowOpacity,
+            shadowRadius: theme.shadows.card.shadowRadius,
+            elevation: theme.shadows.card.elevation,
+          },
+        ]}
+      >
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          Data
+        </Text>
         <Pressable
           onPress={async () => {
             await exportStateToJson({
@@ -34,17 +49,21 @@ export default function DataSettingsScreen() {
               preferences,
             });
           }}
-          style={styles.button}
+          style={[styles.button, { backgroundColor: theme.colors.brand }]}
         >
-          <Text style={styles.buttonLabel}>Export JSON</Text>
+          <Text style={[styles.buttonLabel, { color: theme.colors.surface }]}>
+            Export JSON
+          </Text>
         </Pressable>
         <Pressable
           onPress={async () => {
             await importAppState();
           }}
-          style={styles.button}
+          style={[styles.button, { backgroundColor: theme.colors.brand }]}
         >
-          <Text style={styles.buttonLabel}>Import JSON</Text>
+          <Text style={[styles.buttonLabel, { color: theme.colors.surface }]}>
+            Import JSON
+          </Text>
         </Pressable>
         <Pressable
           onPress={() =>
@@ -63,9 +82,14 @@ export default function DataSettingsScreen() {
               ],
             )
           }
-          style={[styles.button, styles.dangerButton]}
+          style={[
+            styles.button,
+            { backgroundColor: theme.colors.accentRedSoft },
+          ]}
         >
-          <Text style={styles.dangerLabel}>Reset local data</Text>
+          <Text style={[styles.dangerLabel, { color: theme.colors.accentRed }]}>
+            Reset local data
+          </Text>
         </Pressable>
       </View>
     </ScreenShell>
@@ -76,21 +100,16 @@ const styles = StyleSheet.create({
   card: {
     marginTop: spacing.xl,
     gap: spacing.md,
-    backgroundColor: colors.surface,
     borderRadius: radii.card,
     padding: spacing.xl,
-    ...shadows.card,
   },
-  title: { ...typography.h1, color: colors.textPrimary },
+  title: { ...typography.h1 },
   button: {
     minHeight: 54,
     borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand,
-    ...shadows.button,
   },
-  buttonLabel: { ...typography.bodyStrong, color: colors.surface },
-  dangerButton: { backgroundColor: '#FCE5E5' },
-  dangerLabel: { ...typography.bodyStrong, color: colors.accentRed },
+  buttonLabel: { ...typography.bodyStrong },
+  dangerLabel: { ...typography.bodyStrong },
 });

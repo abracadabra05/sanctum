@@ -1,4 +1,5 @@
 import type { Weekday } from '@/shared/lib/date';
+import type { ThemeMode } from '@/shared/theme';
 
 export type SchemaVersion = '1';
 export type TimeFormat = '12h' | '24h';
@@ -93,8 +94,10 @@ export interface UserPreferences {
   weekStartsOn: Weekday;
   notificationsEnabled: boolean;
   hasCompletedOnboarding: boolean;
+  hasSeenAppTour: boolean;
   waterReminderIntervalMinutes?: number;
   waterReminderCutoffTime?: string;
+  themeMode: ThemeMode;
 }
 
 export interface AppState {
@@ -127,6 +130,7 @@ export interface TaskListItemViewModel {
   task: TaskItem;
   category: TaskCategoryEntity;
   occurrence: TaskOccurrenceViewModel;
+  searchText?: string;
 }
 
 export interface TaskListSection {

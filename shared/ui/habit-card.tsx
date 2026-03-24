@@ -1,7 +1,7 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radii, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography } from '@/shared/theme';
 import type { HabitCardViewModel } from '@/shared/types/app';
 
 interface HabitCardProps {
@@ -10,50 +10,76 @@ interface HabitCardProps {
   onLongPress?: () => void;
 }
 
+const titleColor = '#17324D';
+const secondaryColor = '#5E738D';
+
 export function HabitCard({ habit, onPress, onLongPress }: HabitCardProps) {
+  const icon =
+    habit.icon === 'sparkles' ? (
+      <MaterialIcons color={titleColor} name="auto-awesome" size={22} />
+    ) : habit.icon === 'leaf' ? (
+      <Ionicons color={titleColor} name="leaf" size={20} />
+    ) : habit.icon === 'book' ? (
+      <Ionicons color={titleColor} name="book" size={20} />
+    ) : habit.icon === 'moon' ? (
+      <Ionicons color={titleColor} name="moon" size={20} />
+    ) : (
+      <Ionicons color={titleColor} name="ellipse" size={18} />
+    );
+
   return (
-    <Pressable
-      onLongPress={onLongPress}
-      onPress={onPress}
-      style={[styles.card, { backgroundColor: habit.accentColor }]}
-    >
-      <View style={styles.iconWrap}>
-        {habit.icon === 'sparkles' ? (
-          <MaterialIcons
-            color={colors.textPrimary}
-            name="auto-awesome"
-            size={22}
-          />
-        ) : habit.icon === 'leaf' ? (
-          <Ionicons color={colors.textPrimary} name="leaf" size={20} />
-        ) : habit.icon === 'book' ? (
-          <Ionicons color={colors.textPrimary} name="book" size={20} />
-        ) : habit.icon === 'moon' ? (
-          <Ionicons color={colors.textPrimary} name="moon" size={20} />
-        ) : (
-          <Ionicons color={colors.textPrimary} name="ellipse" size={18} />
-        )}
-      </View>
-      <View style={styles.body}>
-        <Text style={styles.days}>{habit.streakDays}</Text>
-        <Text style={styles.daysLabel}>DAYS</Text>
-        <Text style={styles.name}>{habit.name}</Text>
-        <Text style={styles.progress}>{habit.progressLabel}</Text>
-        {habit.nextReminder ? (
-          <Text style={styles.reminder}>Reminder {habit.nextReminder}</Text>
-        ) : null}
-      </View>
-    </Pressable>
+    <View>
+      <Pressable
+        onLongPress={onLongPress}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.card,
+          { backgroundColor: habit.accentColor },
+          pressed && styles.cardPressed,
+        ]}
+      >
+        <View style={styles.iconWrap}>{icon}</View>
+        <View style={styles.body}>
+          <Text numberOfLines={1} style={[styles.days, { color: titleColor }]}>
+            {habit.streakDays}
+          </Text>
+          <Text style={[styles.daysLabel, { color: secondaryColor }]}>
+            DAYS
+          </Text>
+          <Text numberOfLines={2} style={[styles.name, { color: titleColor }]}>
+            {habit.name}
+          </Text>
+          <Text
+            numberOfLines={2}
+            style={[styles.progress, { color: secondaryColor }]}
+          >
+            {habit.progressLabel}
+          </Text>
+          {habit.nextReminder ? (
+            <Text
+              numberOfLines={1}
+              style={[styles.reminder, { color: secondaryColor }]}
+            >
+              Reminder {habit.nextReminder}
+            </Text>
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     width: 165,
-    minHeight: 240,
+    minHeight: 220,
     borderRadius: radii.tile,
     padding: spacing.lg,
     gap: spacing.xl,
+  },
+  cardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
   },
   iconWrap: {
     width: 58,
@@ -61,7 +87,7 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFFCC',
+    backgroundColor: '#FFFFFF55',
   },
   body: {
     gap: 2,
@@ -70,24 +96,19 @@ const styles = StyleSheet.create({
     fontSize: 38,
     lineHeight: 42,
     fontWeight: '700',
-    color: colors.textPrimary,
   },
   daysLabel: {
     ...typography.caption,
-    color: colors.textPrimary,
   },
   name: {
     marginTop: spacing.sm,
     ...typography.h2,
-    color: colors.textPrimary,
   },
   progress: {
     marginTop: spacing.sm,
     ...typography.caption,
-    color: colors.textSecondary,
   },
   reminder: {
     ...typography.caption,
-    color: colors.textSecondary,
   },
 });

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing, typography } from '@/shared/theme';
+import { spacing, typography, useTheme } from '@/shared/theme';
 
 interface SectionHeadingProps {
   eyebrow: string;
@@ -13,13 +13,23 @@ export function SectionHeading({
   title,
   actionLabel,
 }: SectionHeadingProps) {
+  const theme = useTheme();
+
   return (
     <View style={styles.row}>
       <View style={styles.copy}>
-        <Text style={styles.eyebrow}>{eyebrow}</Text>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.eyebrow, { color: theme.colors.textPrimary }]}>
+          {eyebrow}
+        </Text>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          {title}
+        </Text>
       </View>
-      {actionLabel ? <Text style={styles.action}>{actionLabel}</Text> : null}
+      {actionLabel ? (
+        <Text style={[styles.action, { color: theme.colors.brand }]}>
+          {actionLabel}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -37,14 +47,11 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...typography.eyebrow,
-    color: colors.textPrimary,
   },
   title: {
     ...typography.h1,
-    color: colors.textPrimary,
   },
   action: {
     ...typography.bodyStrong,
-    color: colors.brand,
   },
 });

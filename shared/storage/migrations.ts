@@ -21,7 +21,17 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
 
   const legacy = raw as Record<string, any>;
   if (!legacy.hydration || !legacy.preferences) {
-    return createSeedState();
+    const seeded = createSeedState();
+    const fallbackParsed = appStateSchema.safeParse({
+      ...legacy,
+      preferences: {
+        ...seeded.preferences,
+        ...(legacy.preferences ?? {}),
+        themeMode: legacy.preferences?.themeMode ?? 'system',
+        hasSeenAppTour: legacy.preferences?.hasSeenAppTour ?? false,
+      },
+    });
+    return fallbackParsed.success ? fallbackParsed.data : seeded;
   }
 
   const todayKey = toDateKey(new Date());
@@ -126,8 +136,10 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
       weekStartsOn: 1,
       notificationsEnabled: false,
       hasCompletedOnboarding: false,
+      hasSeenAppTour: false,
       waterReminderIntervalMinutes: 90,
       waterReminderCutoffTime: '22:00',
+      themeMode: legacy.preferences.themeMode ?? 'system',
     },
   };
 };

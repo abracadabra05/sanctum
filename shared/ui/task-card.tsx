@@ -19,12 +19,6 @@ interface TaskCardProps {
   onArchive?: (taskId: string) => void;
 }
 
-const priorityColor = {
-  low: '#7C8CA5',
-  medium: '#0F6DCA',
-  high: '#C92B2B',
-};
-
 const getContrastText = (hex: string) => {
   const sanitized = hex.replace('#', '');
   const normalized =
@@ -40,7 +34,7 @@ const getContrastText = (hex: string) => {
   const blue = parseInt(normalized.slice(4, 6), 16);
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
 
-  return luminance > 0.7 ? '#25405E' : '#F8FBFF';
+  return luminance > 0.65 ? '#111827' : '#FFFFFF';
 };
 
 export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
@@ -51,6 +45,9 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
     () => getContrastText(item.category.color),
     [item.category.color],
   );
+  const priorityTextColor = theme.colors[
+    `priority${item.task.priority.charAt(0).toUpperCase() + item.task.priority.slice(1)}` as keyof typeof theme.colors
+  ] as string;
 
   const resetPosition = useCallback(() => {
     Animated.spring(translateX, {
@@ -194,12 +191,7 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
               >
                 {done ? 'Done' : item.occurrence.displayTime}
               </Text>
-              <Text
-                style={[
-                  styles.priority,
-                  { color: priorityColor[item.task.priority] },
-                ]}
-              >
+              <Text style={[styles.priority, { color: priorityTextColor }]}>
                 {item.task.priority.toUpperCase()}
               </Text>
             </View>

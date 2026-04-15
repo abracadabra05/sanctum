@@ -63,7 +63,7 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
       return;
     }
 
-    router.replace(steps[0].route);
+    router.navigate(steps[0].route);
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
@@ -88,7 +88,7 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
 
     const nextIndex = stepIndex + 1;
     setStepIndex(nextIndex);
-    router.replace(steps[nextIndex].route);
+    router.navigate(steps[nextIndex].route);
   };
 
   const icon = useMemo(() => {

@@ -18,8 +18,13 @@ import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { AppMenu } from '@/shared/ui/app-menu';
+import { CreateHabitSheet } from '@/shared/ui/create-habit-sheet';
+import { CreateTaskSheet } from '@/shared/ui/create-task-sheet';
+import { EmptyState } from '@/shared/ui/empty-state';
 import { HabitCard } from '@/shared/ui/habit-card';
 import { ProgressRing } from '@/shared/ui/progress-ring';
+import type { RadialFabItem } from '@/shared/ui/radial-fab';
+import { RadialFab } from '@/shared/ui/radial-fab';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 import { SectionHeading } from '@/shared/ui/section-heading';
 import { TaskCard } from '@/shared/ui/task-card';
@@ -30,7 +35,15 @@ function DashboardHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
   return (
     <View style={styles.header}>
       <View style={styles.brandRow}>
-        <View style={styles.avatarWrap}>
+        <View
+          style={[
+            styles.avatarWrap,
+            {
+              backgroundColor: theme.colors.brandSoft,
+              borderColor: theme.colors.brand,
+            },
+          ]}
+        >
           <View
             style={[
               styles.avatarInner,
@@ -80,6 +93,8 @@ export default function DashboardScreen() {
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
+  const [createHabitOpen, setCreateHabitOpen] = useState(false);
   const [targetDraft, setTargetDraft] = useState(
     String(preferences.dailyWaterTargetMl),
   );
@@ -150,6 +165,7 @@ export default function DashboardScreen() {
         <View>
           <SectionHeading
             actionLabel={`${(hydrationProgress.consumedMl / 1000).toFixed(1)}L / ${(preferences.dailyWaterTargetMl / 1000).toFixed(1)}L`}
+            onActionPress={() => setSettingsOpen(true)}
             eyebrow="Hydration"
             title="Stay Fluid"
           />
@@ -231,6 +247,7 @@ export default function DashboardScreen() {
               <TextInput
                 keyboardType="number-pad"
                 onChangeText={setCustomWater}
+                scrollEnabled={false}
                 style={[
                   styles.customInput,
                   {
@@ -307,13 +324,21 @@ export default function DashboardScreen() {
           />
         </View>
         <View style={styles.stack}>
-          {todayTasks.map((item) => (
-            <TaskCard
-              key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
-              item={item}
-              onToggle={completeTaskOccurrence}
+          {todayTasks.length > 0 ? (
+            todayTasks.map((item) => (
+              <TaskCard
+                key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
+                item={item}
+                onToggle={completeTaskOccurrence}
+              />
+            ))
+          ) : (
+            <EmptyState
+              icon="tasks"
+              title="No tasks for today"
+              description="Tap the + button on the Tasks screen to add your first task."
             />
-          ))}
+          )}
         </View>
 
         <View>
@@ -322,17 +347,60 @@ export default function DashboardScreen() {
         <View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.habitRow}>
-              {habitCards.map((habit) => (
-                <HabitCard
-                  habit={habit}
-                  key={habit.id}
-                  onPress={() => markHabitComplete(habit.id, todayKey)}
+              {habitCards.length > 0 ? (
+                habitCards.map((habit) => (
+                  <HabitCard
+                    habit={habit}
+                    key={habit.id}
+                    onPress={() => markHabitComplete(habit.id, todayKey)}
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  icon="habits"
+                  title="No habits yet"
+                  description="Create your first habit to start building streaks."
                 />
-              ))}
+              )}
             </View>
           </ScrollView>
         </View>
       </ScreenShell>
+
+      <RadialFab
+        onPress={() => setCreateTaskOpen(true)}
+        items={
+          [
+            {
+              id: 'search-tasks',
+              label: 'Search tasks',
+              icon: { name: 'search-outline', type: 'ionicon' },
+              onPress: () => router.push('/(tabs)/tasks?search=1'),
+            },
+            {
+              id: 'create-task',
+              label: 'Add task',
+              icon: { name: 'add-circle-outline', type: 'ionicon' },
+              onPress: () => setCreateTaskOpen(true),
+            },
+            {
+              id: 'create-habit',
+              label: 'Add habit',
+              icon: { name: 'leaf-outline', type: 'ionicon' },
+              onPress: () => setCreateHabitOpen(true),
+            },
+          ] as RadialFabItem[]
+        }
+      />
+
+      <CreateTaskSheet
+        visible={createTaskOpen}
+        onClose={() => setCreateTaskOpen(false)}
+      />
+      <CreateHabitSheet
+        visible={createHabitOpen}
+        onClose={() => setCreateHabitOpen(false)}
+      />
 
       <AppMenu
         visible={menuOpen}
@@ -448,11 +516,9 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#FFD1AA',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#98C3F5',
   },
   avatarInner: {
     width: 34,

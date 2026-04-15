@@ -13,7 +13,11 @@ import {
   resetAppState,
   saveAppState,
 } from '@/shared/storage/adapter';
-import { PRESET_TASK_CATEGORIES, createSeedState } from '@/shared/storage/seed';
+import {
+  PRESET_TASK_CATEGORIES,
+  createEmptyState,
+  createSeedState,
+} from '@/shared/storage/seed';
 import type {
   AppState,
   HabitItem,
@@ -104,9 +108,14 @@ const buildSnapshot = (state: Pick<AppStore, keyof AppState>): AppState => ({
 });
 
 const persistSnapshot = async (state: AppState) => {
-  await saveAppState(state);
-  await syncWaterNotifications(state);
-  await syncHabitNotifications(state);
+  try {
+    await saveAppState(state);
+    await syncWaterNotifications(state);
+    await syncHabitNotifications(state);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[AppStore] Failed to persist app state:', error);
+  }
 };
 
 const applyHydrationDerived = (state: AppState): AppState => {
@@ -160,6 +169,9 @@ export const useAppStore = create<AppStore>((set) => ({
     const loaded = ensureDayState(await loadAppState());
     set({ ...loaded, isReady: true, activeTaskFilter: 'all' });
     await persistSnapshot(loaded);
+    // Re-schedule notifications on every app launch
+    await syncWaterNotifications(loaded);
+    await syncHabitNotifications(loaded);
   },
   rolloverDayIfNeeded: () => {
     set((state) => {
@@ -483,7 +495,7 @@ export const useAppStore = create<AppStore>((set) => ({
   },
   resetAllData: async () => {
     await resetAppState();
-    const nextState = ensureDayState(createSeedState());
+    const nextState = ensureDayState(createEmptyState());
     set({ ...nextState, isReady: true, activeTaskFilter: 'all' });
     await persistSnapshot(nextState);
   },

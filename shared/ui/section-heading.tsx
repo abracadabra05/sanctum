@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { spacing, typography, useTheme } from '@/shared/theme';
 
@@ -6,12 +6,14 @@ interface SectionHeadingProps {
   eyebrow: string;
   title: string;
   actionLabel?: string;
+  onActionPress?: () => void;
 }
 
 export function SectionHeading({
   eyebrow,
   title,
   actionLabel,
+  onActionPress,
 }: SectionHeadingProps) {
   const theme = useTheme();
 
@@ -26,9 +28,20 @@ export function SectionHeading({
         </Text>
       </View>
       {actionLabel ? (
-        <Text style={[styles.action, { color: theme.colors.brand }]}>
-          {actionLabel}
-        </Text>
+        <Pressable
+          onPress={onActionPress}
+          style={({ pressed }) => [
+            styles.actionWrap,
+            pressed && styles.actionPressed,
+          ]}
+        >
+          <Text
+            numberOfLines={1}
+            style={[styles.action, { color: theme.colors.brand }]}
+          >
+            {actionLabel}
+          </Text>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -53,5 +66,12 @@ const styles = StyleSheet.create({
   },
   action: {
     ...typography.bodyStrong,
+  },
+  actionWrap: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  actionPressed: {
+    opacity: 0.7,
   },
 });

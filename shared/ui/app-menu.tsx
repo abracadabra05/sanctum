@@ -82,7 +82,12 @@ export function AppMenu(props: AppMenuProps) {
           { backgroundColor: theme.colors.overlay, opacity },
         ]}
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={props.onClose} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close menu"
+          style={StyleSheet.absoluteFill}
+          onPress={props.onClose}
+        />
         <Animated.View
           style={[
             styles.sheet,
@@ -104,6 +109,8 @@ export function AppMenu(props: AppMenuProps) {
           {items.map((item) => (
             <Pressable
               key={item.key}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
               onPress={() => {
                 props.onClose();
                 handlers[item.key]();

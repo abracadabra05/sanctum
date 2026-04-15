@@ -25,7 +25,10 @@ import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { TaskPriority, TaskRepeatRule } from '@/shared/types/app';
+import { EmptyState } from '@/shared/ui/empty-state';
 import { ProgressRing } from '@/shared/ui/progress-ring';
+import type { RadialFabItem } from '@/shared/ui/radial-fab';
+import { RadialFab } from '@/shared/ui/radial-fab';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 import { TaskCard } from '@/shared/ui/task-card';
 
@@ -171,18 +174,28 @@ export default function TasksScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [draft, setDraft] = useState(createInitialDraft());
-  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const translateYValue = useRef(new Animated.Value(800)).current;
+
+  useEffect(() => {
+    if (modalOpen) {
+      Animated.spring(translateYValue, {
+        toValue: 0,
+        bounciness: 4,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [modalOpen, translateYValue]);
 
   const closeSheet = useCallback(() => {
-    Animated.timing(sheetTranslateY, {
-      toValue: 420,
+    Animated.timing(translateYValue, {
+      toValue: 800,
       duration: 180,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
       setModalOpen(false);
-      sheetTranslateY.setValue(0);
     });
-  }, [sheetTranslateY]);
+  }, [translateYValue]);
 
   const sheetPanResponder = useMemo(
     () =>
@@ -191,28 +204,28 @@ export default function TasksScreen() {
           Math.abs(gestureState.dy) > Math.abs(gestureState.dx) &&
           gestureState.dy > 8,
         onPanResponderMove: (_, gestureState) => {
-          sheetTranslateY.setValue(Math.max(0, gestureState.dy));
+          translateYValue.setValue(Math.max(0, gestureState.dy));
         },
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dy > 110 || gestureState.vy > 1.2) {
             closeSheet();
             return;
           }
-          Animated.spring(sheetTranslateY, {
+          Animated.spring(translateYValue, {
             toValue: 0,
             useNativeDriver: true,
             bounciness: 6,
           }).start();
         },
         onPanResponderTerminate: () => {
-          Animated.spring(sheetTranslateY, {
+          Animated.spring(translateYValue, {
             toValue: 0,
             useNativeDriver: true,
             bounciness: 6,
           }).start();
         },
       }),
-    [closeSheet, sheetTranslateY],
+    [closeSheet, translateYValue],
   );
 
   useEffect(() => {
@@ -244,9 +257,8 @@ export default function TasksScreen() {
       ...createInitialDraft(),
       categoryId: categories[0]?.id ?? 'work',
     });
-    sheetTranslateY.setValue(0);
     setModalOpen(true);
-  }, [categories, sheetTranslateY]);
+  }, [categories]);
 
   useEffect(() => {
     if (params.compose === '1') {
@@ -307,7 +319,6 @@ export default function TasksScreen() {
       priority: task.priority,
       repeatRule: task.repeatRule,
     });
-    sheetTranslateY.setValue(0);
     setModalOpen(true);
   };
 
@@ -465,7 +476,7 @@ export default function TasksScreen() {
               </View>
             )}
           </View>
-        ) : (
+        ) : sections.length > 0 ? (
           sections.map((section) => (
             <View key={section.id} style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -497,28 +508,41 @@ export default function TasksScreen() {
               </View>
             </View>
           ))
+        ) : (
+          <EmptyState
+            icon="tasks"
+            title="No tasks yet"
+            description="Tap the + button to create your first task and start organizing your day."
+          />
         )}
-
-        <Pressable
-          onPress={openCreate}
-          style={({ pressed }) => [
-            styles.fab,
-            {
-              backgroundColor: theme.colors.brand,
-              shadowColor: theme.shadows.button.shadowColor,
-              shadowOffset: theme.shadows.button.shadowOffset,
-              shadowOpacity: theme.shadows.button.shadowOpacity,
-              shadowRadius: theme.shadows.button.shadowRadius,
-              elevation: theme.shadows.button.elevation,
-            },
-            pressed && styles.fabPressed,
-          ]}
-        >
-          <Ionicons color={theme.colors.surface} name="add" size={34} />
-        </Pressable>
       </ScreenShell>
 
-      <Modal animationType="slide" transparent visible={modalOpen}>
+      <RadialFab
+        onPress={openCreate}
+        items={
+          [
+            {
+              id: 'search',
+              label: 'Search',
+              icon: { name: 'search-outline', type: 'ionicon' },
+              onPress: () => setSearchOpen(true),
+            },
+            {
+              id: 'create-task',
+              label: 'Add task',
+              icon: { name: 'add-circle-outline', type: 'ionicon' },
+              onPress: openCreate,
+            },
+          ] as RadialFabItem[]
+        }
+      />
+
+      <Modal
+        animationType="none"
+        transparent
+        visible={modalOpen}
+        onRequestClose={closeSheet}
+      >
         <View
           style={[
             styles.modalOverlay,
@@ -531,7 +555,7 @@ export default function TasksScreen() {
               styles.sheet,
               {
                 backgroundColor: theme.colors.surfaceElevated,
-                transform: [{ translateY: sheetTranslateY }],
+                transform: [{ translateY: translateYValue }],
               },
             ]}
           >

@@ -68,8 +68,8 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
       date: todayKey,
       consumedMl: legacy.hydration.consumedMl ?? 0,
       entries: Array.isArray(legacy.hydration.entries)
-        ? legacy.hydration.entries.map((entry: any) => ({
-            id: entry.id ?? `water-${Math.random()}`,
+        ? legacy.hydration.entries.map((entry: any, index: number) => ({
+            id: entry.id ?? `water-${Date.now()}-${index}`,
             amountMl: entry.amountMl ?? 0,
             timestamp: entry.timestamp ?? new Date().toISOString(),
             source: 'manual' as const,

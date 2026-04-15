@@ -200,3 +200,33 @@ export const createSeedState = (): AppState => ({
     themeMode: 'system',
   },
 });
+
+export const createEmptyState = (): AppState => ({
+  schemaVersion: '1',
+  hydrationToday: {
+    date: todayKey,
+    consumedMl: 0,
+    entries: [],
+    isGoalReached: false,
+    overflowMl: 0,
+  },
+  hydrationHistory: [],
+  taskCategories: [...PRESET_TASK_CATEGORIES],
+  tasks: [],
+  taskCompletions: [],
+  habits: [],
+  preferences: {
+    displayName: 'User',
+    dailyWaterTargetMl: 2500,
+    quickWaterAmounts: [250, 500, 750],
+    dayStartsAt: '00:00',
+    timeFormat: '12h',
+    weekStartsOn: 1,
+    notificationsEnabled: false,
+    hasCompletedOnboarding: true,
+    hasSeenAppTour: true,
+    waterReminderIntervalMinutes: 90,
+    waterReminderCutoffTime: '22:00',
+    themeMode: 'system',
+  },
+});

@@ -1,7 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import { spacing, useTheme } from '@/shared/theme';
 
@@ -11,6 +14,7 @@ interface ScreenShellProps extends PropsWithChildren {
 
 export function ScreenShell({ children, header }: ScreenShellProps) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <LinearGradient
@@ -20,7 +24,11 @@ export function ScreenShell({ children, header }: ScreenShellProps) {
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         {header}
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: insets.bottom + spacing.xl },
+          ]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {children}
@@ -40,7 +48,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 150,
     gap: spacing.lg,
   },
 });

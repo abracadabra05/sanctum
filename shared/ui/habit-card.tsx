@@ -10,10 +10,27 @@ interface HabitCardProps {
   onLongPress?: () => void;
 }
 
-const titleColor = '#17324D';
-const secondaryColor = '#5E738D';
+const getContrastText = (hex: string) => {
+  const sanitized = hex.replace('#', '');
+  const normalized =
+    sanitized.length === 3
+      ? sanitized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : sanitized;
+
+  const red = parseInt(normalized.slice(0, 2), 16);
+  const green = parseInt(normalized.slice(2, 4), 16);
+  const blue = parseInt(normalized.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+
+  return luminance > 0.65 ? '#111827' : '#FFFFFF';
+};
 
 export function HabitCard({ habit, onPress, onLongPress }: HabitCardProps) {
+  const titleColor = getContrastText(habit.accentColor);
+  const secondaryColor = titleColor === '#111827' ? '#475569' : '#E2E8F0';
   const icon =
     habit.icon === 'sparkles' ? (
       <MaterialIcons color={titleColor} name="auto-awesome" size={22} />

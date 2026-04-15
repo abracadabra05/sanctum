@@ -20,7 +20,10 @@ import { getHabitCards } from '@/features/habits/selectors';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
+import { EmptyState } from '@/shared/ui/empty-state';
 import { HabitCard } from '@/shared/ui/habit-card';
+import type { RadialFabItem } from '@/shared/ui/radial-fab';
+import { RadialFab } from '@/shared/ui/radial-fab';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 if (
@@ -78,18 +81,28 @@ export default function HabitsScreen() {
   const [showArchived, setShowArchived] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<HabitDraft>(createHabitDraft());
-  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const translateYValue = useRef(new Animated.Value(800)).current;
+
+  useEffect(() => {
+    if (modalOpen) {
+      Animated.spring(translateYValue, {
+        toValue: 0,
+        bounciness: 4,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [modalOpen, translateYValue]);
 
   const closeSheet = useCallback(() => {
-    Animated.timing(sheetTranslateY, {
-      toValue: 420,
+    Animated.timing(translateYValue, {
+      toValue: 800,
       duration: 180,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
       setModalOpen(false);
-      sheetTranslateY.setValue(0);
     });
-  }, [sheetTranslateY]);
+  }, [translateYValue]);
 
   const sheetPanResponder = useMemo(
     () =>
@@ -98,28 +111,28 @@ export default function HabitsScreen() {
           Math.abs(gestureState.dy) > Math.abs(gestureState.dx) &&
           gestureState.dy > 8,
         onPanResponderMove: (_, gestureState) => {
-          sheetTranslateY.setValue(Math.max(0, gestureState.dy));
+          translateYValue.setValue(Math.max(0, gestureState.dy));
         },
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dy > 110 || gestureState.vy > 1.2) {
             closeSheet();
             return;
           }
-          Animated.spring(sheetTranslateY, {
+          Animated.spring(translateYValue, {
             toValue: 0,
             useNativeDriver: true,
             bounciness: 6,
           }).start();
         },
         onPanResponderTerminate: () => {
-          Animated.spring(sheetTranslateY, {
+          Animated.spring(translateYValue, {
             toValue: 0,
             useNativeDriver: true,
             bounciness: 6,
           }).start();
         },
       }),
-    [closeSheet, sheetTranslateY],
+    [closeSheet, translateYValue],
   );
 
   useEffect(() => {
@@ -135,11 +148,10 @@ export default function HabitsScreen() {
   useEffect(() => {
     if (params.compose === '1') {
       setDraft(createHabitDraft());
-      sheetTranslateY.setValue(0);
       setModalOpen(true);
       router.replace('/(tabs)/habits');
     }
-  }, [params.compose, router, sheetTranslateY]);
+  }, [params.compose, router]);
 
   const cards = useMemo(
     () =>
@@ -163,7 +175,6 @@ export default function HabitsScreen() {
             <Pressable
               onPress={() => {
                 setDraft(createHabitDraft());
-                sheetTranslateY.setValue(0);
                 setModalOpen(true);
               }}
               style={styles.headerAction}
@@ -240,37 +251,73 @@ export default function HabitsScreen() {
         </View>
 
         <View style={styles.grid}>
-          {cards.map((habit) => (
-            <View key={habit.id}>
-              <HabitCard
-                habit={habit}
-                onLongPress={() => {
-                  const item = habits.find((entry) => entry.id === habit.id);
-                  if (!item) return;
-                  setDraft({
-                    id: item.id,
-                    name: item.name,
-                    icon: item.icon,
-                    accentColor: item.accentColor,
-                    goalMode: item.goalMode,
-                    targetPerPeriod: String(item.targetPerPeriod),
-                    schedule: item.schedule.days,
-                    reminderEnabled: item.reminder.enabled,
-                    reminderTime: item.reminder.time ?? '20:00',
-                  });
-                  sheetTranslateY.setValue(0);
-                  setModalOpen(true);
-                }}
-                onPress={() =>
-                  markHabitComplete(habit.id, toDateKey(new Date()))
-                }
-              />
-            </View>
-          ))}
+          {cards.length > 0 ? (
+            cards.map((habit) => (
+              <View key={habit.id}>
+                <HabitCard
+                  habit={habit}
+                  onLongPress={() => {
+                    const item = habits.find((entry) => entry.id === habit.id);
+                    if (!item) return;
+                    setDraft({
+                      id: item.id,
+                      name: item.name,
+                      icon: item.icon,
+                      accentColor: item.accentColor,
+                      goalMode: item.goalMode,
+                      targetPerPeriod: String(item.targetPerPeriod),
+                      schedule: item.schedule.days,
+                      reminderEnabled: item.reminder.enabled,
+                      reminderTime: item.reminder.time ?? '20:00',
+                    });
+                    setModalOpen(true);
+                  }}
+                  onPress={() =>
+                    markHabitComplete(habit.id, toDateKey(new Date()))
+                  }
+                />
+              </View>
+            ))
+          ) : (
+            <EmptyState
+              icon="habits"
+              title={showArchived ? 'No archived habits' : 'No habits yet'}
+              description={
+                showArchived
+                  ? 'Your archived habits will appear here.'
+                  : 'Tap the + button to create your first habit.'
+              }
+            />
+          )}
         </View>
       </ScreenShell>
 
-      <Modal animationType="slide" transparent visible={modalOpen}>
+      <RadialFab
+        onPress={() => {
+          setDraft(createHabitDraft());
+          setModalOpen(true);
+        }}
+        items={
+          [
+            {
+              id: 'create-habit',
+              label: 'Add habit',
+              icon: { name: 'leaf-outline', type: 'ionicon' },
+              onPress: () => {
+                setDraft(createHabitDraft());
+                setModalOpen(true);
+              },
+            },
+          ] as RadialFabItem[]
+        }
+      />
+
+      <Modal
+        animationType="none"
+        transparent
+        visible={modalOpen}
+        onRequestClose={closeSheet}
+      >
         <View
           style={[
             styles.modalOverlay,
@@ -283,7 +330,7 @@ export default function HabitsScreen() {
               styles.sheet,
               {
                 backgroundColor: theme.colors.surfaceElevated,
-                transform: [{ translateY: sheetTranslateY }],
+                transform: [{ translateY: translateYValue }],
               },
             ]}
           >

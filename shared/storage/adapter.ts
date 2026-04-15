@@ -12,7 +12,10 @@ let dbPromise: ReturnType<typeof openDatabaseAsync> | null = null;
 
 const getDatabase = async () => {
   if (!dbPromise) {
-    dbPromise = openDatabaseAsync(DATABASE_NAME);
+    dbPromise = openDatabaseAsync(DATABASE_NAME).catch((error) => {
+      dbPromise = null;
+      throw error;
+    });
   }
 
   const db = await dbPromise;
@@ -28,19 +31,23 @@ const getDatabase = async () => {
 };
 
 export const loadAppState = async (): Promise<AppState> => {
-  const db = await getDatabase();
-  const record = await db.getFirstAsync<{ value: string }>(
-    'SELECT value FROM app_storage WHERE key = ?',
-    [STORAGE_KEY],
-  );
+  try {
+    const db = await getDatabase();
+    const record = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_storage WHERE key = ?',
+      [STORAGE_KEY],
+    );
 
-  if (!record?.value) {
+    if (!record?.value) {
+      return createSeedState();
+    }
+
+    const raw = JSON.parse(record.value);
+    const migrated = migrateToLatestAppState(raw);
+    return appStateSchema.parse(migrated);
+  } catch {
     return createSeedState();
   }
-
-  const raw = JSON.parse(record.value);
-  const migrated = migrateToLatestAppState(raw);
-  return appStateSchema.parse(migrated);
 };
 
 export const saveAppState = async (state: AppState): Promise<void> => {

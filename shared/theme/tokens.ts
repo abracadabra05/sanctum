@@ -28,6 +28,9 @@ export interface ThemeColors {
   tabIcon: string;
   successSurface: string;
   iconNeutral: string;
+  priorityLow: string;
+  priorityMedium: string;
+  priorityHigh: string;
 }
 
 export interface ThemeShadows {
@@ -133,6 +136,9 @@ export const lightTheme: AppTheme = {
     tabIcon: '#94A3B8',
     successSurface: '#0F6DCA',
     iconNeutral: '#6F7E95',
+    priorityLow: '#7C8CA5',
+    priorityMedium: '#0F6DCA',
+    priorityHigh: '#C92B2B',
   },
   shadows: {
     card: {
@@ -182,6 +188,9 @@ export const darkTheme: AppTheme = {
     tabIcon: '#7E93AF',
     successSurface: '#4A9CFF',
     iconNeutral: '#A7B7CC',
+    priorityLow: '#8899AA',
+    priorityMedium: '#4A9CFF',
+    priorityHigh: '#FF6B6B',
   },
   shadows: {
     card: {
@@ -200,6 +209,3 @@ export const darkTheme: AppTheme = {
     },
   },
 };
-
-export const colors = lightTheme.colors;
-export const shadows = lightTheme.shadows;

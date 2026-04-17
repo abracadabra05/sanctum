@@ -24,6 +24,26 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
     const seeded = createSeedState();
     const fallbackParsed = appStateSchema.safeParse({
       ...legacy,
+      tasks: Array.isArray(legacy.tasks)
+        ? legacy.tasks.map((task: any) => ({
+            ...task,
+            archivedAt:
+              task.archivedAt ??
+              (task.archived
+                ? (task.completedAt ?? task.dueAt ?? new Date().toISOString())
+                : null),
+          }))
+        : seeded.tasks,
+      habits: Array.isArray(legacy.habits)
+        ? legacy.habits.map((habit: any) => ({
+            ...habit,
+            archivedAt:
+              habit.archivedAt ??
+              (habit.archived
+                ? (habit.updatedAt ?? new Date().toISOString())
+                : null),
+          }))
+        : seeded.habits,
       preferences: {
         ...seeded.preferences,
         ...(legacy.preferences ?? {}),
@@ -99,6 +119,7 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
       dueAt: task.dueAt ?? combineDateAndTime(todayKey, '09:00'),
       completedAt: task.status === 'done' ? new Date().toISOString() : null,
       archived: false,
+      archivedAt: null,
     })),
     taskCompletions: legacyTasks
       .filter((task: any) => task.status === 'done')
@@ -122,6 +143,7 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
       targetPerPeriod: 1,
       schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
       archived: false,
+      archivedAt: null,
       reminder: { enabled: false, time: null },
       completions: Array.isArray(habit.completedDates)
         ? habit.completedDates

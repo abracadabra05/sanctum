@@ -37,6 +37,7 @@ describe('task selectors', () => {
         dueAt: '2026-04-10T10:00:00.000Z',
         completedAt: null,
         archived: false,
+        archivedAt: null,
       };
       expect(doesTaskOccurOnDate(task, '2026-04-10')).toBe(true);
       expect(doesTaskOccurOnDate(task, '2026-04-11')).toBe(false);
@@ -53,6 +54,7 @@ describe('task selectors', () => {
         dueAt: '2026-04-08T10:00:00.000Z',
         completedAt: null,
         archived: false,
+        archivedAt: null,
       };
       expect(doesTaskOccurOnDate(task, '2026-04-09')).toBe(true);
       expect(doesTaskOccurOnDate(task, '2026-04-10')).toBe(true);
@@ -69,6 +71,7 @@ describe('task selectors', () => {
         dueAt: '2026-04-06T10:00:00.000Z', // Monday
         completedAt: null,
         archived: false,
+        archivedAt: null,
       };
       // 2026-04-10 is Friday (weekday)
       expect(doesTaskOccurOnDate(task, '2026-04-10')).toBe(true);
@@ -109,6 +112,7 @@ describe('task selectors', () => {
         dueAt: '2026-04-10T10:00:00.000Z',
         completedAt: null,
         archived: false,
+        archivedAt: null,
       },
     ];
     const completions: TaskCompletion[] = [];
@@ -152,6 +156,7 @@ describe('task selectors', () => {
           dueAt: '2026-04-10T10:00:00.000Z',
           completedAt: null,
           archived: false,
+          archivedAt: null,
         },
       ],
       filter: 'all',
@@ -194,6 +199,7 @@ describe('task selectors', () => {
           dueAt: '2026-04-10T10:00:00.000Z',
           completedAt: null,
           archived: false,
+          archivedAt: null,
         },
         {
           id: 't2',
@@ -205,6 +211,7 @@ describe('task selectors', () => {
           dueAt: '2026-04-10T12:00:00.000Z',
           completedAt: null,
           archived: false,
+          archivedAt: null,
         },
       ];
       const completions: TaskCompletion[] = [

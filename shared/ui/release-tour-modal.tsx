@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { useUiStore } from '@/shared/store/ui-store';
 import { spacing, typography, useTheme } from '@/shared/theme';
 
 interface ReleaseTourModalProps {
@@ -51,11 +52,14 @@ const steps = [
 export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
   const theme = useTheme();
   const router = useRouter();
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const [stepIndex, setStepIndex] = useState(0);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(18)).current;
 
   useEffect(() => {
+    setGestureBlock('release-tour', visible);
+
     if (!visible) {
       setStepIndex(0);
       opacity.setValue(0);
@@ -76,7 +80,7 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [opacity, router, translateY, visible]);
+  }, [opacity, router, setGestureBlock, translateY, visible]);
 
   const step = steps[stepIndex];
 
@@ -108,7 +112,7 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
           style={[
             styles.card,
             {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.surfaceFloating,
               shadowColor: theme.shadows.card.shadowColor,
               shadowOffset: theme.shadows.card.shadowOffset,
               shadowOpacity: theme.shadows.card.shadowOpacity,
@@ -123,7 +127,7 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
             <View
               style={[
                 styles.iconWrap,
-                { backgroundColor: theme.colors.brandSoft },
+                { backgroundColor: theme.colors.surfaceActive },
               ]}
             >
               {icon}

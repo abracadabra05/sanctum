@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { useUiStore } from '@/shared/store/ui-store';
 import { spacing, typography, useTheme } from '@/shared/theme';
 
 interface AppMenuProps {
@@ -32,11 +33,14 @@ const items = [
 
 export function AppMenu(props: AppMenuProps) {
   const theme = useTheme();
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-10)).current;
   const scale = useRef(new Animated.Value(0.98)).current;
 
   useEffect(() => {
+    setGestureBlock('app-menu', props.visible);
+
     if (!props.visible) {
       opacity.setValue(0);
       translateY.setValue(-10);
@@ -64,7 +68,7 @@ export function AppMenu(props: AppMenuProps) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [opacity, props.visible, scale, translateY]);
+  }, [opacity, props.visible, scale, setGestureBlock, translateY]);
 
   const handlers = {
     search: props.onSearchTasks,
@@ -92,7 +96,7 @@ export function AppMenu(props: AppMenuProps) {
           style={[
             styles.sheet,
             {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.surfaceFloating,
               borderColor: theme.colors.border,
               shadowColor: theme.shadows.card.shadowColor,
               shadowOffset: theme.shadows.card.shadowOffset,
@@ -124,7 +128,7 @@ export function AppMenu(props: AppMenuProps) {
               <View
                 style={[
                   styles.iconWrap,
-                  { backgroundColor: theme.colors.surfaceMuted },
+                  { backgroundColor: theme.colors.surfaceActive },
                 ]}
               >
                 <Ionicons

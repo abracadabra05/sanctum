@@ -14,6 +14,7 @@ describe('habit selectors', () => {
     targetPerPeriod: 1,
     schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
     archived: false,
+    archivedAt: null,
     reminder: { enabled: false, time: null },
     completions: ['2026-03-21', '2026-03-20', '2026-03-19'],
   };

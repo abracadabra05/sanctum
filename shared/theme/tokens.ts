@@ -8,9 +8,13 @@ export interface ThemeColors {
   surfaceMuted: string;
   surfaceStrong: string;
   surfaceElevated: string;
+  surfaceFloating: string;
+  surfaceActive: string;
+  surfaceDanger: string;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
+  textOnTint: string;
   brand: string;
   brandStrong: string;
   brandSoft: string;
@@ -116,9 +120,13 @@ export const lightTheme: AppTheme = {
     surfaceMuted: '#F2F6FB',
     surfaceStrong: '#E5ECF5',
     surfaceElevated: '#FFFFFF',
+    surfaceFloating: '#FFFFFF',
+    surfaceActive: '#DDEBFF',
+    surfaceDanger: '#FCE5E5',
     textPrimary: '#111827',
     textSecondary: '#64748B',
     textMuted: '#94A3B8',
+    textOnTint: '#FFFFFF',
     brand: '#0F6DCA',
     brandStrong: '#0A57A3',
     brandSoft: '#DDEBFF',
@@ -168,9 +176,13 @@ export const darkTheme: AppTheme = {
     surfaceMuted: '#182A43',
     surfaceStrong: '#1D3351',
     surfaceElevated: '#1A2D47',
+    surfaceFloating: '#16263D',
+    surfaceActive: '#1B3758',
+    surfaceDanger: '#41242A',
     textPrimary: '#F3F7FD',
     textSecondary: '#9FB1C8',
     textMuted: '#6E85A4',
+    textOnTint: '#F8FBFF',
     brand: '#4A9CFF',
     brandStrong: '#81BBFF',
     brandSoft: '#173657',

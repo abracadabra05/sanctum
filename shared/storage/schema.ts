@@ -43,6 +43,7 @@ export const taskItemSchema = z.object({
   dueAt: z.string(),
   completedAt: z.string().nullable().optional(),
   archived: z.boolean(),
+  archivedAt: z.string().nullable(),
 });
 
 export const taskCompletionSchema = z.object({
@@ -77,6 +78,7 @@ export const habitItemSchema = z.object({
   targetPerPeriod: z.number().int().positive(),
   schedule: habitScheduleSchema,
   archived: z.boolean(),
+  archivedAt: z.string().nullable(),
   reminder: habitReminderSchema,
   completions: z.array(z.string()),
 });

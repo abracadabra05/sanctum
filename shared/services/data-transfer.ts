@@ -28,7 +28,7 @@ export const exportStateToJson = async (state: AppState) => {
       });
     }
     return fileUri;
-  } catch (error) {
+  } catch {
     Alert.alert('Export failed', 'Could not export data. Please try again.');
     return null;
   }

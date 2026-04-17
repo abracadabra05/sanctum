@@ -9,6 +9,7 @@ const links = [
   { href: '/settings/categories', label: 'Task categories' },
   { href: '/settings/notifications', label: 'Notifications' },
   { href: '/settings/display', label: 'Display & theme' },
+  { href: '/settings/archive', label: 'Archive center' },
   { href: '/settings/data', label: 'Export / import / reset' },
 ];
 

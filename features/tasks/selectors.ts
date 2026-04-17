@@ -23,14 +23,6 @@ const sectionOrder: TaskListSection['id'][] = [
   'completed',
 ];
 
-const isTaskArchivedAndOld = (task: TaskItem) => {
-  if (!task.archived) {
-    return false;
-  }
-
-  return Date.now() - new Date(task.dueAt).getTime() > 90 * 24 * 60 * 60 * 1000;
-};
-
 export const doesTaskOccurOnDate = (task: TaskItem, dateKey: string) => {
   const dueDate = new Date(task.dueAt);
   const dueKey = toDateKey(dueDate);
@@ -139,7 +131,7 @@ export const buildTaskSections = ({
   today?: Date;
 }): TaskListSection[] => {
   const todayKey = toDateKey(today);
-  const activeTasks = tasks.filter((task) => !isTaskArchivedAndOld(task));
+  const activeTasks = tasks.filter((task) => !task.archived);
   const relevantTasks = activeTasks.filter((task) => {
     if (filter === 'all') return true;
     if (filter === 'completed') return true;

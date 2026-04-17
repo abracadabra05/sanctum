@@ -97,6 +97,7 @@ export const createSeedState = (): AppState => ({
       dueAt: combineDateAndTime(toDateKey(addDays(now, -1)), '10:00'),
       completedAt: null,
       archived: false,
+      archivedAt: null,
     },
     {
       id: 'task-2',
@@ -108,6 +109,7 @@ export const createSeedState = (): AppState => ({
       dueAt: combineDateAndTime(todayKey, '18:00'),
       completedAt: null,
       archived: false,
+      archivedAt: null,
     },
     {
       id: 'task-3',
@@ -119,6 +121,7 @@ export const createSeedState = (): AppState => ({
       dueAt: combineDateAndTime(todayKey, '08:00'),
       completedAt: now.toISOString(),
       archived: false,
+      archivedAt: null,
     },
     {
       id: 'task-4',
@@ -130,6 +133,7 @@ export const createSeedState = (): AppState => ({
       dueAt: combineDateAndTime(toDateKey(addDays(now, 1)), '11:00'),
       completedAt: null,
       archived: false,
+      archivedAt: null,
     },
   ],
   taskCompletions: [
@@ -149,6 +153,7 @@ export const createSeedState = (): AppState => ({
       targetPerPeriod: 1,
       schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
       archived: false,
+      archivedAt: null,
       reminder: { enabled: true, time: '20:00' },
       completions: Array.from({ length: 12 }, (_, index) =>
         toDateKey(addDays(now, -index)),
@@ -163,6 +168,7 @@ export const createSeedState = (): AppState => ({
       targetPerPeriod: 3,
       schedule: { days: [1, 3, 5] },
       archived: false,
+      archivedAt: null,
       reminder: { enabled: true, time: '08:00' },
       completions: [
         toDateKey(addDays(now, -2)),
@@ -179,6 +185,7 @@ export const createSeedState = (): AppState => ({
       targetPerPeriod: 1,
       schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
       archived: false,
+      archivedAt: null,
       reminder: { enabled: false, time: null },
       completions: Array.from({ length: 8 }, (_, index) =>
         toDateKey(addDays(now, -index)),

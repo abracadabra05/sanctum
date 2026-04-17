@@ -1,21 +1,34 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Tabs } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, Tabs } from 'expo-router';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import {
   Animated,
-  Dimensions,
   LayoutChangeEvent,
-  PanResponder,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import {
+  State as GestureState,
+  PanGestureHandler,
+  type PanGestureHandlerGestureEvent,
+  type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppStore } from '@/shared/store/app-store';
+import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
+import { ArchiveSnackbar } from '@/shared/ui/archive-snackbar';
 import { ReleaseTourModal } from '@/shared/ui/release-tour-modal';
 
 const labelMap = {
@@ -25,56 +38,81 @@ const labelMap = {
   profile: 'Profile',
 };
 
-function SanctumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+const tabPaths = ['/', '/tasks', '/habits', '/profile'] as const;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
+function SanctumTabBar({
+  state,
+  descriptors,
+  navigation,
+  gestureHandlerRef,
+}: BottomTabBarProps & {
+  gestureHandlerRef: MutableRefObject<PanGestureHandler | null>;
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const setGestureBlock = useUiStore((store) => store.setGestureBlock);
+  const dragStartX = useRef(0);
+  const isDraggingRef = useRef(false);
 
-  // Track each tab's layout for pill positioning
   const [tabLayouts, setTabLayouts] = useState<{ x: number; width: number }[]>(
-    Array(state.routes.length).fill({ x: 0, width: 0 }),
+    Array.from({ length: state.routes.length }, () => ({ x: 0, width: 0 })),
   );
 
-  // Animated pill position
   const pillTranslateX = useRef(new Animated.Value(0)).current;
   const pillOpacity = useRef(
     new Animated.Value(state.index === 0 ? 1 : 0),
   ).current;
-
   const pillWidth = useRef(new Animated.Value(60)).current;
 
-  // Sync pill position with current tab index
   useEffect(() => {
     const layout = tabLayouts[state.index];
-    if (layout && layout.width > 0) {
-      Animated.parallel([
-        Animated.spring(pillTranslateX, {
-          toValue: layout.x,
-          damping: 18,
-          stiffness: 200,
-          useNativeDriver: false,
-        }),
-        Animated.spring(pillWidth, {
-          toValue: layout.width,
-          damping: 18,
-          stiffness: 200,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pillOpacity, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: false,
-        }),
-      ]).start();
+    if (!layout || layout.width <= 0 || isDraggingRef.current) {
+      return;
     }
-  }, [state.index, tabLayouts, pillTranslateX, pillWidth, pillOpacity]);
+
+    Animated.parallel([
+      Animated.spring(pillTranslateX, {
+        toValue: layout.x,
+        damping: 18,
+        stiffness: 200,
+        useNativeDriver: false,
+      }),
+      Animated.spring(pillWidth, {
+        toValue: layout.width,
+        damping: 18,
+        stiffness: 200,
+        useNativeDriver: false,
+      }),
+      Animated.timing(pillOpacity, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [pillOpacity, pillTranslateX, pillWidth, state.index, tabLayouts]);
 
   const pillStyle = useMemo(
     () => ({
-      left: pillTranslateX,
+      transform: [{ translateX: pillTranslateX }],
       width: pillWidth,
       opacity: pillOpacity,
     }),
-    [pillTranslateX, pillWidth, pillOpacity],
+    [pillOpacity, pillTranslateX, pillWidth],
+  );
+
+  const getNearestTabIndex = useCallback(
+    (positionX: number) =>
+      tabLayouts.reduce((closestIndex, layout, index) => {
+        const closestDistance = Math.abs(
+          tabLayouts[closestIndex].x - positionX,
+        );
+        const currentDistance = Math.abs(layout.x - positionX);
+        return currentDistance < closestDistance ? index : closestIndex;
+      }, state.index),
+    [state.index, tabLayouts],
   );
 
   const handleTabLayout = (index: number) => (event: LayoutChangeEvent) => {
@@ -107,29 +145,88 @@ function SanctumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     return <Ionicons color={color} name="person" size={20} />;
   };
 
-  const tabPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_, gs) =>
-          Math.abs(gs.dx) > Math.abs(gs.dy) && Math.abs(gs.dx) > 15,
-        onPanResponderRelease: (_, gs) => {
-          if (Math.abs(gs.dx) > 40) {
-            const idx = state.index;
-            if (gs.dx < 0 && idx < state.routes.length - 1) {
-              navigation.navigate(state.routes[idx + 1].name);
-            } else if (gs.dx > 0 && idx > 0) {
-              navigation.navigate(state.routes[idx - 1].name);
-            }
-          }
-        },
+  const handleTabDragStateChange = ({
+    nativeEvent,
+  }: PanGestureHandlerStateChangeEvent) => {
+    const activeLayout = tabLayouts[state.index];
+    if (!activeLayout) {
+      return;
+    }
+
+    if (nativeEvent.state === GestureState.ACTIVE) {
+      isDraggingRef.current = true;
+      dragStartX.current = activeLayout.x;
+      pillOpacity.setValue(1);
+      setGestureBlock('tabbar-drag', true);
+      return;
+    }
+
+    if (nativeEvent.oldState !== GestureState.ACTIVE) {
+      return;
+    }
+
+    isDraggingRef.current = false;
+    setGestureBlock('tabbar-drag', false);
+
+    const firstLayout = tabLayouts[0];
+    const lastLayout = tabLayouts[tabLayouts.length - 1];
+    if (!firstLayout || !lastLayout) {
+      return;
+    }
+
+    const projectedX = clamp(
+      dragStartX.current + nativeEvent.translationX,
+      firstLayout.x,
+      lastLayout.x,
+    );
+    const nextIndex =
+      Math.abs(nativeEvent.translationX) < 12
+        ? state.index
+        : getNearestTabIndex(projectedX);
+    const nextLayout = tabLayouts[nextIndex] ?? activeLayout;
+
+    Animated.parallel([
+      Animated.spring(pillTranslateX, {
+        toValue: nextLayout.x,
+        damping: 18,
+        stiffness: 200,
+        useNativeDriver: false,
       }),
-    [state.index, state.routes, navigation],
-  );
+      Animated.spring(pillWidth, {
+        toValue: nextLayout.width,
+        damping: 18,
+        stiffness: 200,
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    if (nextIndex !== state.index) {
+      navigation.navigate(state.routes[nextIndex].name);
+    }
+  };
+
+  const handleTabDrag = ({ nativeEvent }: PanGestureHandlerGestureEvent) => {
+    if (!isDraggingRef.current) {
+      return;
+    }
+
+    const firstLayout = tabLayouts[0];
+    const lastLayout = tabLayouts[tabLayouts.length - 1];
+    if (!firstLayout || !lastLayout) {
+      return;
+    }
+
+    const nextX = clamp(
+      dragStartX.current + nativeEvent.translationX,
+      firstLayout.x,
+      lastLayout.x,
+    );
+
+    pillTranslateX.setValue(nextX);
+  };
 
   return (
     <View
-      {...tabPanResponder.panHandlers}
       style={[
         styles.wrapper,
         {
@@ -138,76 +235,87 @@ function SanctumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         },
       ]}
     >
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: theme.colors.surfaceElevated,
-            shadowColor: theme.shadows.card.shadowColor,
-            shadowOffset: theme.shadows.card.shadowOffset,
-            shadowOpacity: theme.shadows.card.shadowOpacity,
-            shadowRadius: theme.shadows.card.shadowRadius,
-            elevation: theme.shadows.card.elevation,
-          },
-        ]}
+      <PanGestureHandler
+        activeOffsetX={[-12, 12]}
+        failOffsetY={[-10, 10]}
+        onGestureEvent={handleTabDrag}
+        onHandlerStateChange={handleTabDragStateChange}
+        ref={gestureHandlerRef}
       >
-        {/* Animated indicator pill */}
         <Animated.View
           style={[
-            styles.pill,
-            { backgroundColor: theme.colors.brandSoft },
-            pillStyle,
+            styles.container,
+            {
+              backgroundColor: theme.colors.surfaceFloating,
+              shadowColor: theme.shadows.card.shadowColor,
+              shadowOffset: theme.shadows.card.shadowOffset,
+              shadowOpacity: theme.shadows.card.shadowOpacity,
+              shadowRadius: theme.shadows.card.shadowRadius,
+              elevation: theme.shadows.card.elevation,
+            },
           ]}
-        />
+        >
+          <Animated.View
+            style={[
+              styles.pill,
+              { backgroundColor: theme.colors.surfaceActive },
+              pillStyle,
+            ]}
+          />
 
-        {state.routes.map((route, index) => {
-          const focused = state.index === index;
-          const options = descriptors[route.key].options;
-          const onPress = () => {
-            navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!focused) {
-              navigation.navigate(route.name);
-            }
-          };
-
-          return (
-            <Pressable
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityLabel={
-                options.title ?? labelMap[route.name as keyof typeof labelMap]
+          {state.routes.map((route, index) => {
+            const focused = state.index === index;
+            const options = descriptors[route.key].options;
+            const onPress = () => {
+              navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!focused) {
+                navigation.navigate(route.name);
               }
-              onPress={onPress}
-              onLayout={handleTabLayout(index)}
-              style={({ pressed }) => [
-                styles.item,
-                pressed && styles.itemPressed,
-              ]}
-            >
-              {renderIcon(route.name, focused)}
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: focused ? theme.colors.brand : theme.colors.tabIcon,
-                  },
+            };
+
+            return (
+              <Pressable
+                key={route.key}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  options.title ?? labelMap[route.name as keyof typeof labelMap]
+                }
+                onLayout={handleTabLayout(index)}
+                onPress={onPress}
+                style={({ pressed }) => [
+                  styles.item,
+                  pressed && styles.itemPressed,
                 ]}
               >
-                {options.title ?? labelMap[route.name as keyof typeof labelMap]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+                {renderIcon(route.name, focused)}
+                <Text
+                  style={[
+                    styles.label,
+                    {
+                      color: focused
+                        ? theme.colors.brand
+                        : theme.colors.tabIcon,
+                    },
+                  ]}
+                >
+                  {options.title ??
+                    labelMap[route.name as keyof typeof labelMap]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </Animated.View>
+      </PanGestureHandler>
     </View>
   );
 }
 
 export default function TabsLayout() {
+  const theme = useTheme();
   const isReady = useAppStore((state) => state.isReady);
   const hasCompletedOnboarding = useAppStore(
     (state) => state.preferences.hasCompletedOnboarding,
@@ -216,52 +324,13 @@ export default function TabsLayout() {
     (state) => state.preferences.hasSeenAppTour,
   );
   const setAppTourSeen = useAppStore((state) => state.setAppTourSeen);
-  const [tourVisible, setTourVisible] = useState(false);
-  const navRef = useRef<{
-    navigate: (name: string) => void;
-    currentIndex: number;
-  }>({ navigate: () => {}, currentIndex: 0 });
-
-  const routeNames = ['index', 'tasks', 'habits', 'profile'];
-
-  const swipePanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: (e) => {
-          const { pageX, pageY } = e.nativeEvent;
-          const { width, height } = Dimensions.get('window');
-          // Dead zone in bottom-right for RadialFab
-          if (pageX > width * 0.65 && pageY > height * 0.75) {
-            return false;
-          }
-          return false;
-        },
-        onMoveShouldSetPanResponder: (e, gs) => {
-          const { pageX, pageY } = e.nativeEvent;
-          const { width, height } = Dimensions.get('window');
-          // Estimate initial touch point
-          const startX = pageX - gs.dx;
-          const startY = pageY - gs.dy;
-
-          if (startX > width * 0.65 && startY > height * 0.75) {
-            return false;
-          }
-
-          return Math.abs(gs.dx) > Math.abs(gs.dy) && Math.abs(gs.dx) > 15;
-        },
-        onPanResponderRelease: (_, gs) => {
-          if (Math.abs(gs.dx) > 50) {
-            const idx = navRef.current.currentIndex;
-            if (gs.dx < 0 && idx < routeNames.length - 1) {
-              navRef.current.navigate(routeNames[idx + 1]);
-            } else if (gs.dx > 0 && idx > 0) {
-              navRef.current.navigate(routeNames[idx - 1]);
-            }
-          }
-        },
-      }),
-    [routeNames],
+  const isNavigationGestureBlocked = useUiStore(
+    (state) => state.isNavigationGestureBlocked,
   );
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
+  const [tourVisible, setTourVisible] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabBarGestureRef = useRef<PanGestureHandler | null>(null);
 
   useEffect(() => {
     if (isReady && hasCompletedOnboarding && !hasSeenAppTour) {
@@ -269,35 +338,102 @@ export default function TabsLayout() {
     }
   }, [hasCompletedOnboarding, hasSeenAppTour, isReady]);
 
+  const handleGlobalSwipeStateChange = ({
+    nativeEvent,
+  }: PanGestureHandlerStateChangeEvent) => {
+    if (nativeEvent.state === GestureState.ACTIVE) {
+      if (!useUiStore.getState().isNavigationGestureBlocked) {
+        setGestureBlock('global-tab-swipe', true);
+      }
+      return;
+    }
+
+    if (nativeEvent.oldState !== GestureState.ACTIVE) {
+      return;
+    }
+
+    setGestureBlock('global-tab-swipe', false);
+
+    if (useUiStore.getState().isNavigationGestureBlocked) {
+      return;
+    }
+
+    const horizontalIntent =
+      Math.abs(nativeEvent.translationX) >
+      Math.abs(nativeEvent.translationY) * 1.25;
+    const strongEnough =
+      Math.abs(nativeEvent.translationX) > 72 ||
+      Math.abs(nativeEvent.velocityX) > 580;
+
+    if (!horizontalIntent || !strongEnough) {
+      return;
+    }
+
+    const nextIndex = clamp(
+      nativeEvent.translationX < 0 ? activeIndex + 1 : activeIndex - 1,
+      0,
+      3,
+    );
+
+    if (nextIndex === activeIndex) {
+      return;
+    }
+
+    router.navigate(tabPaths[nextIndex]);
+  };
+
   return (
-    <View style={{ flex: 1 }} {...swipePanResponder.panHandlers}>
-      <Tabs
-        tabBar={(props) => {
-          navRef.current = {
-            navigate: (name: string) => props.navigation.navigate(name),
-            currentIndex: props.state.index,
-          };
-          return <SanctumTabBar {...props} />;
-        }}
-        screenOptions={{ headerShown: false, animation: 'fade' }}
+    <View
+      style={[styles.layout, { backgroundColor: theme.colors.backgroundTop }]}
+    >
+      <PanGestureHandler
+        activeOffsetX={[-26, 26]}
+        enabled={!isNavigationGestureBlocked}
+        failOffsetY={[-16, 16]}
+        onHandlerStateChange={handleGlobalSwipeStateChange}
+        waitFor={tabBarGestureRef}
       >
-        <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
-        <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
-        <Tabs.Screen name="habits" options={{ title: 'Habits' }} />
-        <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-      </Tabs>
-      <ReleaseTourModal
-        visible={tourVisible}
-        onFinish={() => {
-          setTourVisible(false);
-          setAppTourSeen(true);
-        }}
-      />
+        <Animated.View style={styles.layout}>
+          <Tabs
+            screenListeners={{
+              state: (event) => {
+                const index = event.data.state?.index;
+                if (typeof index === 'number') {
+                  setActiveIndex(index);
+                }
+              },
+            }}
+            screenOptions={{
+              headerShown: false,
+              sceneStyle: { backgroundColor: theme.colors.backgroundTop },
+            }}
+            tabBar={(props) => (
+              <SanctumTabBar {...props} gestureHandlerRef={tabBarGestureRef} />
+            )}
+          >
+            <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
+            <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
+            <Tabs.Screen name="habits" options={{ title: 'Habits' }} />
+            <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+          </Tabs>
+          <ArchiveSnackbar />
+          <ReleaseTourModal
+            visible={tourVisible}
+            onFinish={() => {
+              setTourVisible(false);
+              setAppTourSeen(true);
+            }}
+          />
+        </Animated.View>
+      </PanGestureHandler>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  layout: {
+    flex: 1,
+  },
   wrapper: {
     paddingHorizontal: spacing.md,
   },
@@ -312,7 +448,6 @@ const styles = StyleSheet.create({
   },
   pill: {
     position: 'absolute',
-    height: '100%',
     borderRadius: 22,
     top: spacing.sm,
     bottom: spacing.sm,

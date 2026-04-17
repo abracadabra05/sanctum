@@ -16,6 +16,7 @@ import { getHydrationProgress } from '@/features/hydration/selectors';
 import { getTaskCompletionRecord } from '@/features/tasks/selectors';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
+import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { AppMenu } from '@/shared/ui/app-menu';
 import { CreateHabitSheet } from '@/shared/ui/create-habit-sheet';
@@ -88,6 +89,8 @@ export default function DashboardScreen() {
     (state) => state.completeTaskOccurrence,
   );
   const markHabitComplete = useAppStore((state) => state.markHabitComplete);
+  const queueQuickAction = useUiStore((state) => state.queueQuickAction);
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const [customWater, setCustomWater] = useState(
     String(preferences.quickWaterAmounts[0] ?? 180),
   );
@@ -345,7 +348,17 @@ export default function DashboardScreen() {
           <SectionHeading eyebrow="Consistency" title="Habit Streaks" />
         </View>
         <View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            onTouchCancel={() =>
+              setGestureBlock('dashboard-habits-scroll', false)
+            }
+            onTouchEnd={() => setGestureBlock('dashboard-habits-scroll', false)}
+            onTouchStart={() =>
+              setGestureBlock('dashboard-habits-scroll', true)
+            }
+            showsHorizontalScrollIndicator={false}
+          >
             <View style={styles.habitRow}>
               {habitCards.length > 0 ? (
                 habitCards.map((habit) => (
@@ -372,12 +385,6 @@ export default function DashboardScreen() {
         items={
           [
             {
-              id: 'search-tasks',
-              label: 'Search tasks',
-              icon: { name: 'search-outline', type: 'ionicon' },
-              onPress: () => router.push('/(tabs)/tasks?search=1'),
-            },
-            {
               id: 'create-task',
               label: 'Add task',
               icon: { name: 'add-circle-outline', type: 'ionicon' },
@@ -388,6 +395,15 @@ export default function DashboardScreen() {
               label: 'Add habit',
               icon: { name: 'leaf-outline', type: 'ionicon' },
               onPress: () => setCreateHabitOpen(true),
+            },
+            {
+              id: 'search-tasks',
+              label: 'Search tasks',
+              icon: { name: 'search-outline', type: 'ionicon' },
+              onPress: () => {
+                queueQuickAction('open-task-search');
+                router.navigate('/tasks');
+              },
             },
           ] as RadialFabItem[]
         }
@@ -405,11 +421,14 @@ export default function DashboardScreen() {
       <AppMenu
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onSearchTasks={() => router.push('/(tabs)/tasks?search=1')}
-        onCreateTask={() => router.push('/(tabs)/tasks?compose=1')}
-        onCreateHabit={() => router.push('/(tabs)/habits?compose=1')}
-        onOpenData={() => router.push('/settings/data')}
-        onOpenProfile={() => router.push('/(tabs)/profile')}
+        onSearchTasks={() => {
+          queueQuickAction('open-task-search');
+          router.navigate('/tasks');
+        }}
+        onCreateTask={() => setCreateTaskOpen(true)}
+        onCreateHabit={() => setCreateHabitOpen(true)}
+        onOpenData={() => router.navigate('/settings/data')}
+        onOpenProfile={() => router.navigate('/profile')}
       />
 
       <Modal animationType="slide" transparent visible={settingsOpen}>

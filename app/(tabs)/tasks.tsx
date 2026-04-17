@@ -1,12 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   LayoutAnimation,
-  Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -20,11 +18,14 @@ import {
 import {
   buildTaskSections,
   filterTaskListByQuery,
+  getTaskCompletionRecord,
 } from '@/features/tasks/selectors';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
+import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
-import type { TaskPriority, TaskRepeatRule } from '@/shared/types/app';
+import type { TaskItem, TaskListItemViewModel } from '@/shared/types/app';
+import { CreateTaskSheet } from '@/shared/ui/create-task-sheet';
 import { EmptyState } from '@/shared/ui/empty-state';
 import { ProgressRing } from '@/shared/ui/progress-ring';
 import type { RadialFabItem } from '@/shared/ui/radial-fab';
@@ -95,7 +96,7 @@ function TasksHeader({
           style={[
             styles.searchBar,
             {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.surfaceFloating,
               borderColor: theme.colors.border,
               opacity: searchOpacity,
               transform: [{ translateY: searchTranslate }],
@@ -130,30 +131,32 @@ function TasksHeader({
   );
 }
 
-const priorities: TaskPriority[] = ['low', 'medium', 'high'];
-const repeatOptions: { label: string; value: TaskRepeatRule }[] = [
-  { label: 'None', value: { type: 'none' } },
-  { label: 'Daily', value: { type: 'daily' } },
-  { label: 'Weekdays', value: { type: 'weekdays' } },
-  { label: 'Weekly', value: { type: 'weekly', day: 1 } },
-  { label: 'Custom', value: { type: 'custom', days: [1, 3, 5] } },
-];
-
-const createInitialDraft = () => ({
-  id: null as string | null,
-  title: '',
-  notes: '',
-  categoryId: 'work',
-  dueDate: toDateKey(new Date()),
-  dueTime: '18:00',
-  priority: 'medium' as TaskPriority,
-  repeatRule: { type: 'none' } as TaskRepeatRule,
+const buildArchivedItem = (
+  task: TaskItem,
+  categoryLabel: string,
+): TaskListItemViewModel => ({
+  task,
+  category: {
+    id: task.categoryId,
+    label: categoryLabel,
+    color: '#E8EDF4',
+    kind: 'preset',
+    archived: false,
+  },
+  occurrence: {
+    occurrenceDate: toDateKey(new Date(task.dueAt)),
+    displayTime: task.archivedAt
+      ? `Archived ${new Date(task.archivedAt).toLocaleDateString()}`
+      : 'Archived',
+    isCompleted: Boolean(task.completedAt),
+  },
+  searchText: [task.title, task.notes, categoryLabel, task.priority, 'archived']
+    .join(' ')
+    .toLowerCase(),
 });
 
 export default function TasksScreen() {
   const theme = useTheme();
-  const params = useLocalSearchParams<{ compose?: string; search?: string }>();
-  const router = useRouter();
   const isReady = useAppStore((state) => state.isReady);
   const hydrate = useAppStore((state) => state.hydrate);
   const rolloverDayIfNeeded = useAppStore((state) => state.rolloverDayIfNeeded);
@@ -165,68 +168,16 @@ export default function TasksScreen() {
   const completeTaskOccurrence = useAppStore(
     (state) => state.completeTaskOccurrence,
   );
-  const createTask = useAppStore((state) => state.createTask);
-  const updateTask = useAppStore((state) => state.updateTask);
   const archiveTask = useAppStore((state) => state.archiveTask);
+  const restoreTask = useAppStore((state) => state.restoreTask);
   const preferences = useAppStore((state) => state.preferences);
-  const [modalOpen, setModalOpen] = useState(false);
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
+  const setLastArchivedItem = useUiStore((state) => state.setLastArchivedItem);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [draft, setDraft] = useState(createInitialDraft());
-  const translateYValue = useRef(new Animated.Value(800)).current;
-
-  useEffect(() => {
-    if (modalOpen) {
-      Animated.spring(translateYValue, {
-        toValue: 0,
-        bounciness: 4,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [modalOpen, translateYValue]);
-
-  const closeSheet = useCallback(() => {
-    Animated.timing(translateYValue, {
-      toValue: 800,
-      duration: 180,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      setModalOpen(false);
-    });
-  }, [translateYValue]);
-
-  const sheetPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) &&
-          gestureState.dy > 8,
-        onPanResponderMove: (_, gestureState) => {
-          translateYValue.setValue(Math.max(0, gestureState.dy));
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dy > 110 || gestureState.vy > 1.2) {
-            closeSheet();
-            return;
-          }
-          Animated.spring(translateYValue, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-          }).start();
-        },
-        onPanResponderTerminate: () => {
-          Animated.spring(translateYValue, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-          }).start();
-        },
-      }),
-    [closeSheet, translateYValue],
-  );
 
   useEffect(() => {
     if (!isReady) {
@@ -253,26 +204,34 @@ export default function TasksScreen() {
   );
 
   const openCreate = useCallback(() => {
-    setDraft({
-      ...createInitialDraft(),
-      categoryId: categories[0]?.id ?? 'work',
-    });
-    setModalOpen(true);
-  }, [categories]);
+    setEditingTask(null);
+    setSheetOpen(true);
+  }, []);
 
-  useEffect(() => {
-    if (params.compose === '1') {
-      openCreate();
-      router.replace('/(tabs)/tasks');
-    }
-  }, [openCreate, params.compose, router]);
+  const openEdit = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) {
+        return;
+      }
 
-  useEffect(() => {
-    if (params.search === '1') {
-      setSearchOpen(true);
-      router.replace('/(tabs)/tasks');
-    }
-  }, [params.search, router]);
+      setEditingTask(task);
+      setSheetOpen(true);
+    },
+    [tasks],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const quickAction = useUiStore.getState().consumeQuickAction();
+      if (quickAction === 'open-task-search') {
+        setSearchOpen(true);
+      }
+      if (quickAction === 'open-create-task') {
+        openCreate();
+      }
+    }, [openCreate]),
+  );
 
   const sections = useMemo(
     () =>
@@ -286,43 +245,78 @@ export default function TasksScreen() {
     [categories, filter, preferences.timeFormat, taskCompletions, tasks],
   );
 
+  const archivedItems = useMemo(
+    () =>
+      tasks
+        .filter((task) => task.archived)
+        .sort((left, right) => {
+          const leftTime = left.archivedAt
+            ? new Date(left.archivedAt).getTime()
+            : 0;
+          const rightTime = right.archivedAt
+            ? new Date(right.archivedAt).getTime()
+            : 0;
+          return rightTime - leftTime;
+        })
+        .map((task) => {
+          const categoryLabel =
+            categories.find((item) => item.id === task.categoryId)?.label ??
+            'Uncategorized';
+          return buildArchivedItem(task, categoryLabel);
+        }),
+    [categories, tasks],
+  );
+
   const searchedSections = useMemo(
     () => filterTaskListByQuery(sections, debouncedQuery),
     [debouncedQuery, sections],
   );
 
   const searchResults = useMemo(
-    () => searchedSections.flatMap((section) => section.tasks),
-    [searchedSections],
+    () =>
+      filter === 'archived'
+        ? archivedItems.filter((item) =>
+            debouncedQuery
+              ? item.searchText?.includes(debouncedQuery.toLowerCase())
+              : true,
+          )
+        : searchedSections.flatMap((section) => section.tasks),
+    [archivedItems, debouncedQuery, filter, searchedSections],
   );
 
   const focusCompletion = useMemo(() => {
     const todayTasks = tasks.filter((task) => !task.archived);
-    if (!todayTasks.length) return 0;
-    const completedCount = taskCompletions.filter(
-      (item) => item.occurrenceDate === toDateKey(new Date()),
+    if (!todayTasks.length) {
+      return 0;
+    }
+
+    const todayKey = toDateKey(new Date());
+    const completedCount = todayTasks.filter((task) =>
+      Boolean(getTaskCompletionRecord(task.id, todayKey, taskCompletions)),
     ).length;
+
     return Math.round((completedCount / todayTasks.length) * 100);
   }, [taskCompletions, tasks]);
 
-  const openEdit = (taskId: string) => {
-    const task = tasks.find((item) => item.id === taskId);
-    if (!task) return;
-    const due = new Date(task.dueAt);
-    setDraft({
-      id: task.id,
-      title: task.title,
-      notes: task.notes,
-      categoryId: task.categoryId,
-      dueDate: toDateKey(due),
-      dueTime: `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}`,
-      priority: task.priority,
-      repeatRule: task.repeatRule,
-    });
-    setModalOpen(true);
-  };
-
   const showFlatResults = Boolean(debouncedQuery);
+  const archiveMode = filter === 'archived';
+
+  const handleArchiveTask = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) {
+        return;
+      }
+
+      archiveTask(taskId);
+      setLastArchivedItem({
+        id: task.id,
+        kind: 'task',
+        title: task.title,
+      });
+    },
+    [archiveTask, setLastArchivedItem, tasks],
+  );
 
   return (
     <>
@@ -344,7 +338,7 @@ export default function TasksScreen() {
           style={[
             styles.focusCard,
             {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.surfaceFloating,
               shadowColor: theme.shadows.card.shadowColor,
               shadowOffset: theme.shadows.card.shadowOffset,
               shadowOpacity: theme.shadows.card.shadowOpacity,
@@ -376,12 +370,19 @@ export default function TasksScreen() {
           />
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView
+          horizontal
+          onTouchCancel={() => setGestureBlock('task-filter-scroll', false)}
+          onTouchEnd={() => setGestureBlock('task-filter-scroll', false)}
+          onTouchStart={() => setGestureBlock('task-filter-scroll', true)}
+          showsHorizontalScrollIndicator={false}
+        >
           <View style={styles.filterRow}>
             {[
               'all',
               'overdue',
               'completed',
+              'archived',
               ...categories.map((item) => item.id),
             ].map((item) => {
               const active = item === filter;
@@ -407,7 +408,7 @@ export default function TasksScreen() {
                       styles.filterLabel,
                       {
                         color: active
-                          ? theme.colors.surface
+                          ? theme.colors.textOnTint
                           : theme.colors.textPrimary,
                       },
                     ]}
@@ -420,7 +421,100 @@ export default function TasksScreen() {
           </View>
         </ScrollView>
 
-        {showFlatResults ? (
+        {archiveMode ? (
+          <View style={styles.sectionStack}>
+            <View style={styles.sectionHeader}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Archived
+              </Text>
+              <Text
+                style={[
+                  styles.resultCount,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {searchResults.length} items
+              </Text>
+            </View>
+            {searchResults.length ? (
+              searchResults.map((item) => (
+                <View
+                  key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
+                  style={[
+                    styles.archivedRow,
+                    { backgroundColor: theme.colors.surfaceFloating },
+                  ]}
+                >
+                  <View style={styles.archivedBody}>
+                    <Text
+                      style={[
+                        styles.archivedTitle,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
+                      {item.task.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.archivedMeta,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {item.category.label} • {item.occurrence.displayTime}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => restoreTask(item.task.id)}
+                    style={({ pressed }) => [
+                      styles.restoreButton,
+                      { backgroundColor: theme.colors.surfaceActive },
+                      pressed && styles.filterChipPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.restoreLabel,
+                        { color: theme.colors.brand },
+                      ]}
+                    >
+                      Restore
+                    </Text>
+                  </Pressable>
+                </View>
+              ))
+            ) : (
+              <View
+                style={[
+                  styles.emptyCard,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.emptyTitle,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  No archived tasks
+                </Text>
+                <Text
+                  style={[
+                    styles.emptyBody,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Archived tasks will appear here and can be restored at any
+                  time.
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : showFlatResults ? (
           <View style={styles.sectionStack}>
             <View style={styles.sectionHeader}>
               <Text
@@ -445,7 +539,7 @@ export default function TasksScreen() {
                 <TaskCard
                   key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
                   item={item}
-                  onArchive={archiveTask}
+                  onArchive={handleArchiveTask}
                   onEdit={openEdit}
                   onToggle={completeTaskOccurrence}
                 />
@@ -500,7 +594,7 @@ export default function TasksScreen() {
                   <TaskCard
                     key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
                     item={item}
-                    onArchive={archiveTask}
+                    onArchive={handleArchiveTask}
                     onEdit={openEdit}
                     onToggle={completeTaskOccurrence}
                   />
@@ -522,318 +616,30 @@ export default function TasksScreen() {
         items={
           [
             {
-              id: 'search',
-              label: 'Search',
-              icon: { name: 'search-outline', type: 'ionicon' },
-              onPress: () => setSearchOpen(true),
-            },
-            {
               id: 'create-task',
               label: 'Add task',
               icon: { name: 'add-circle-outline', type: 'ionicon' },
               onPress: openCreate,
             },
+            {
+              id: 'search',
+              label: 'Search',
+              icon: { name: 'search-outline', type: 'ionicon' },
+              onPress: () => setSearchOpen(true),
+            },
           ] as RadialFabItem[]
         }
       />
 
-      <Modal
-        animationType="none"
-        transparent
-        visible={modalOpen}
-        onRequestClose={closeSheet}
-      >
-        <View
-          style={[
-            styles.modalOverlay,
-            { backgroundColor: theme.colors.overlay },
-          ]}
-        >
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
-          <Animated.View
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: theme.colors.surfaceElevated,
-                transform: [{ translateY: translateYValue }],
-              },
-            ]}
-          >
-            <View {...sheetPanResponder.panHandlers} style={styles.dragArea}>
-              <View
-                style={[
-                  styles.dragHandle,
-                  { backgroundColor: theme.colors.divider },
-                ]}
-              />
-            </View>
-            <Text
-              style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}
-            >
-              {draft.id ? 'Edit task' : 'Create task'}
-            </Text>
-            <TextInput
-              onChangeText={(value) =>
-                setDraft((current) => ({ ...current, title: value }))
-              }
-              placeholder="Task title"
-              placeholderTextColor={theme.colors.textMuted}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.input,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              value={draft.title}
-            />
-            <TextInput
-              multiline
-              onChangeText={(value) =>
-                setDraft((current) => ({ ...current, notes: value }))
-              }
-              placeholder="Notes"
-              placeholderTextColor={theme.colors.textMuted}
-              style={[
-                styles.input,
-                styles.notesInput,
-                {
-                  backgroundColor: theme.colors.input,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              value={draft.notes}
-            />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.optionRow}>
-                {categories.map((category) => (
-                  <Pressable
-                    key={category.id}
-                    onPress={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        categoryId: category.id,
-                      }))
-                    }
-                    style={({ pressed }) => [
-                      styles.filterChip,
-                      {
-                        backgroundColor:
-                          draft.categoryId === category.id
-                            ? theme.colors.brand
-                            : theme.colors.surfaceMuted,
-                      },
-                      pressed && styles.filterChipPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterLabel,
-                        {
-                          color:
-                            draft.categoryId === category.id
-                              ? theme.colors.surface
-                              : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      {category.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <View style={styles.inlineRow}>
-              <TextInput
-                onChangeText={(value) =>
-                  setDraft((current) => ({ ...current, dueDate: value }))
-                }
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={theme.colors.textMuted}
-                style={[
-                  styles.input,
-                  styles.inlineInput,
-                  {
-                    backgroundColor: theme.colors.input,
-                    color: theme.colors.textPrimary,
-                  },
-                ]}
-                value={draft.dueDate}
-              />
-              <TextInput
-                onChangeText={(value) =>
-                  setDraft((current) => ({ ...current, dueTime: value }))
-                }
-                placeholder="HH:MM"
-                placeholderTextColor={theme.colors.textMuted}
-                style={[
-                  styles.input,
-                  styles.inlineInput,
-                  {
-                    backgroundColor: theme.colors.input,
-                    color: theme.colors.textPrimary,
-                  },
-                ]}
-                value={draft.dueTime}
-              />
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.optionRow}>
-                {priorities.map((priority) => (
-                  <Pressable
-                    key={priority}
-                    onPress={() =>
-                      setDraft((current) => ({ ...current, priority }))
-                    }
-                    style={({ pressed }) => [
-                      styles.filterChip,
-                      {
-                        backgroundColor:
-                          draft.priority === priority
-                            ? theme.colors.brand
-                            : theme.colors.surfaceMuted,
-                      },
-                      pressed && styles.filterChipPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterLabel,
-                        {
-                          color:
-                            draft.priority === priority
-                              ? theme.colors.surface
-                              : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      {priority}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.optionRow}>
-                {repeatOptions.map((option) => (
-                  <Pressable
-                    key={option.label}
-                    onPress={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        repeatRule: option.value,
-                      }))
-                    }
-                    style={({ pressed }) => [
-                      styles.filterChip,
-                      {
-                        backgroundColor:
-                          draft.repeatRule.type === option.value.type
-                            ? theme.colors.brand
-                            : theme.colors.surfaceMuted,
-                      },
-                      pressed && styles.filterChipPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterLabel,
-                        {
-                          color:
-                            draft.repeatRule.type === option.value.type
-                              ? theme.colors.surface
-                              : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <View style={styles.sheetActions}>
-              {draft.id ? (
-                <Pressable
-                  onPress={() => {
-                    archiveTask(draft.id!);
-                    closeSheet();
-                  }}
-                  style={({ pressed }) => [
-                    styles.bottomButton,
-                    { backgroundColor: theme.colors.accentRedSoft },
-                    pressed && styles.buttonPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.archiveLabel,
-                      { color: theme.colors.accentRed },
-                    ]}
-                  >
-                    Archive
-                  </Text>
-                </Pressable>
-              ) : null}
-              <Pressable
-                onPress={closeSheet}
-                style={({ pressed }) => [
-                  styles.bottomButton,
-                  { backgroundColor: theme.colors.surfaceMuted },
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.cancelLabel,
-                    { color: theme.colors.textPrimary },
-                  ]}
-                >
-                  Close
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (!draft.title.trim()) return;
-                  if (draft.id) {
-                    updateTask(draft.id, {
-                      title: draft.title.trim(),
-                      notes: draft.notes,
-                      categoryId: draft.categoryId,
-                      dueDate: draft.dueDate,
-                      dueTime: draft.dueTime,
-                      priority: draft.priority,
-                      repeatRule: draft.repeatRule,
-                    });
-                  } else {
-                    createTask({
-                      title: draft.title.trim(),
-                      notes: draft.notes,
-                      categoryId: draft.categoryId,
-                      dueDate: draft.dueDate,
-                      dueTime: draft.dueTime,
-                      priority: draft.priority,
-                      repeatRule: draft.repeatRule,
-                    });
-                  }
-                  closeSheet();
-                }}
-                style={({ pressed }) => [
-                  styles.bottomButton,
-                  { backgroundColor: theme.colors.brand },
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text
-                  style={[styles.saveLabel, { color: theme.colors.surface }]}
-                >
-                  {draft.id ? 'Save' : 'Create'}
-                </Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
+      <CreateTaskSheet
+        visible={sheetOpen}
+        onClose={() => {
+          setSheetOpen(false);
+          setEditingTask(null);
+        }}
+        initialCategoryId={categories[0]?.id}
+        initialTask={editingTask}
+      />
     </>
   );
 }
@@ -883,7 +689,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   filterRow: { flexDirection: 'row', gap: spacing.sm },
-  optionRow: { flexDirection: 'row', gap: spacing.sm },
   filterChip: {
     borderRadius: radii.pill,
     paddingHorizontal: 18,
@@ -905,6 +710,28 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.h2 },
   resultCount: { ...typography.caption },
   sectionStack: { gap: spacing.md },
+  archivedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radii.card,
+    padding: spacing.lg,
+  },
+  archivedBody: {
+    flex: 1,
+    gap: 4,
+  },
+  archivedTitle: { ...typography.bodyStrong },
+  archivedMeta: { ...typography.caption },
+  restoreButton: {
+    minHeight: 42,
+    minWidth: 88,
+    borderRadius: radii.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  restoreLabel: { ...typography.bodyStrong, fontSize: 15 },
   emptyCard: {
     borderRadius: radii.card,
     padding: spacing.xl,
@@ -912,64 +739,4 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { ...typography.bodyStrong },
   emptyBody: { ...typography.body },
-  fab: {
-    position: 'absolute',
-    right: spacing.xl,
-    bottom: 24,
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fabPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.97 }],
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: radii.card,
-    borderTopRightRadius: radii.card,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  dragArea: {
-    alignItems: 'center',
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  dragHandle: {
-    width: 52,
-    height: 5,
-    borderRadius: 999,
-  },
-  sheetTitle: { ...typography.h2 },
-  input: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    ...typography.bodyStrong,
-  },
-  notesInput: { minHeight: 88, textAlignVertical: 'top' },
-  inlineRow: { flexDirection: 'row', gap: spacing.sm },
-  inlineInput: { flex: 1 },
-  sheetActions: { flexDirection: 'row', gap: spacing.sm },
-  bottomButton: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.985 }],
-  },
-  archiveLabel: { ...typography.bodyStrong },
-  cancelLabel: { ...typography.bodyStrong },
-  saveLabel: { ...typography.bodyStrong },
 });

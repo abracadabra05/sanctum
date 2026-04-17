@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { TaskListItemViewModel } from '@/shared/types/app';
 
@@ -39,6 +40,7 @@ const getContrastText = (hex: string) => {
 
 export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
   const theme = useTheme();
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const done = item.occurrence.isCompleted;
   const translateX = useRef(new Animated.Value(0)).current;
   const categoryTextColor = useMemo(
@@ -74,19 +76,26 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
         onMoveShouldSetPanResponder: (_, gestureState) =>
           Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
           gestureState.dx < -10,
+        onPanResponderGrant: () => {
+          setGestureBlock('task-swipe', true);
+        },
         onPanResponderMove: (_, gestureState) => {
           translateX.setValue(Math.max(gestureState.dx, -140));
         },
         onPanResponderRelease: (_, gestureState) => {
+          setGestureBlock('task-swipe', false);
           if (gestureState.dx < -96 && onArchive) {
             archiveTask();
             return;
           }
           resetPosition();
         },
-        onPanResponderTerminate: resetPosition,
+        onPanResponderTerminate: () => {
+          setGestureBlock('task-swipe', false);
+          resetPosition();
+        },
       }),
-    [archiveTask, onArchive, resetPosition, translateX],
+    [archiveTask, onArchive, resetPosition, setGestureBlock, translateX],
   );
 
   return (
@@ -97,11 +106,15 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
           { backgroundColor: theme.colors.accentRed },
         ]}
       >
-        <Ionicons color={theme.colors.surface} name="trash-outline" size={20} />
+        <Ionicons
+          color={theme.colors.surface}
+          name="archive-outline"
+          size={20}
+        />
         <Text
           style={[styles.archiveActionLabel, { color: theme.colors.surface }]}
         >
-          Delete
+          Archive
         </Text>
       </View>
       <Animated.View

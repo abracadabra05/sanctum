@@ -19,6 +19,7 @@ const tasks: TaskItem[] = [
     dueAt: '2026-03-20T10:00:00.000Z',
     completedAt: null,
     archived: false,
+    archivedAt: null,
   },
   {
     id: '2',
@@ -30,6 +31,7 @@ const tasks: TaskItem[] = [
     dueAt: '2026-03-21T18:00:00.000Z',
     completedAt: null,
     archived: false,
+    archivedAt: null,
   },
   {
     id: '3',
@@ -41,6 +43,7 @@ const tasks: TaskItem[] = [
     dueAt: '2026-03-21T08:00:00.000Z',
     completedAt: null,
     archived: false,
+    archivedAt: null,
   },
   {
     id: '4',
@@ -52,6 +55,7 @@ const tasks: TaskItem[] = [
     dueAt: '2026-03-22T08:00:00.000Z',
     completedAt: null,
     archived: false,
+    archivedAt: null,
   },
 ];
 

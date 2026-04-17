@@ -1,7 +1,7 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { radii, spacing, typography } from '@/shared/theme';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { HabitCardViewModel } from '@/shared/types/app';
 
 interface HabitCardProps {
@@ -28,9 +28,46 @@ const getContrastText = (hex: string) => {
   return luminance > 0.65 ? '#111827' : '#FFFFFF';
 };
 
+const blendHex = (baseHex: string, mixHex: string, mixWeight: number) => {
+  const normalize = (value: string) => {
+    const sanitized = value.replace('#', '');
+    return sanitized.length === 3
+      ? sanitized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : sanitized;
+  };
+
+  const base = normalize(baseHex);
+  const mix = normalize(mixHex);
+  const channels = [0, 2, 4].map((offset) => {
+    const left = parseInt(base.slice(offset, offset + 2), 16);
+    const right = parseInt(mix.slice(offset, offset + 2), 16);
+    return Math.round(left * (1 - mixWeight) + right * mixWeight);
+  });
+
+  return `#${channels
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')}`;
+};
+
 export function HabitCard({ habit, onPress, onLongPress }: HabitCardProps) {
-  const titleColor = getContrastText(habit.accentColor);
-  const secondaryColor = titleColor === '#111827' ? '#475569' : '#E2E8F0';
+  const theme = useTheme();
+  const surfaceColor =
+    theme.mode === 'dark'
+      ? blendHex(habit.accentColor, theme.colors.surfaceStrong, 0.82)
+      : habit.accentColor;
+  const titleColor =
+    theme.mode === 'dark'
+      ? theme.colors.textPrimary
+      : getContrastText(habit.accentColor);
+  const secondaryColor =
+    theme.mode === 'dark'
+      ? theme.colors.textSecondary
+      : titleColor === '#111827'
+        ? '#475569'
+        : '#E2E8F0';
   const icon =
     habit.icon === 'sparkles' ? (
       <MaterialIcons color={titleColor} name="auto-awesome" size={22} />
@@ -51,11 +88,23 @@ export function HabitCard({ habit, onPress, onLongPress }: HabitCardProps) {
         onPress={onPress}
         style={({ pressed }) => [
           styles.card,
-          { backgroundColor: habit.accentColor },
+          { backgroundColor: surfaceColor },
           pressed && styles.cardPressed,
         ]}
       >
-        <View style={styles.iconWrap}>{icon}</View>
+        <View
+          style={[
+            styles.iconWrap,
+            {
+              backgroundColor:
+                theme.mode === 'dark'
+                  ? theme.colors.surfaceActive
+                  : '#FFFFFF55',
+            },
+          ]}
+        >
+          {icon}
+        </View>
         <View style={styles.body}>
           <Text numberOfLines={1} style={[styles.days, { color: titleColor }]}>
             {habit.streakDays}

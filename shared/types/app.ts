@@ -6,7 +6,7 @@ export type TimeFormat = '12h' | '24h';
 export type CategoryKind = 'preset' | 'custom';
 export type HydrationEntrySource = 'quick' | 'custom' | 'manual';
 export type TaskPriority = 'low' | 'medium' | 'high';
-export type TaskFilter = 'all' | 'completed' | 'overdue' | string;
+export type TaskFilter = 'all' | 'completed' | 'overdue' | 'archived' | string;
 export type HabitGoalMode = 'daily' | 'weekly';
 
 export type TaskRepeatRule =
@@ -49,6 +49,7 @@ export interface TaskItem {
   dueAt: string;
   completedAt?: string | null;
   archived: boolean;
+  archivedAt: string | null;
 }
 
 export interface TaskCompletion {
@@ -75,6 +76,7 @@ export interface HabitItem {
   targetPerPeriod: number;
   schedule: HabitSchedule;
   archived: boolean;
+  archivedAt: string | null;
   reminder: HabitReminder;
   completions: string[];
 }

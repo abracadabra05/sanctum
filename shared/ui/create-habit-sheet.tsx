@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   Modal,
   PanResponder,
   Pressable,
@@ -12,11 +13,14 @@ import {
 } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
+import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
+import type { HabitItem } from '@/shared/types/app';
 
 interface CreateHabitSheetProps {
   visible: boolean;
   onClose: () => void;
+  initialHabit?: HabitItem | null;
 }
 
 const habitIcons: ('sparkles' | 'circle' | 'leaf' | 'book' | 'moon')[] = [
@@ -26,14 +30,14 @@ const habitIcons: ('sparkles' | 'circle' | 'leaf' | 'book' | 'moon')[] = [
   'book',
   'moon',
 ];
+
 const habitColors = ['#CFF4F1', '#EFD7E7', '#DCEEFF', '#F9E4C8', '#E8E3FF'];
 
 type HabitDraft = {
-  id: string | null;
   name: string;
-  icon: 'sparkles' | 'circle' | 'leaf' | 'book' | 'moon';
+  icon: HabitItem['icon'];
   accentColor: string;
-  goalMode: 'daily' | 'weekly';
+  goalMode: HabitItem['goalMode'];
   targetPerPeriod: string;
   schedule: number[];
   reminderEnabled: boolean;
@@ -41,7 +45,6 @@ type HabitDraft = {
 };
 
 const createDraft = (): HabitDraft => ({
-  id: null,
   name: '',
   icon: 'sparkles',
   accentColor: '#CFF4F1',
@@ -52,34 +55,68 @@ const createDraft = (): HabitDraft => ({
   reminderTime: '20:00',
 });
 
-export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
+const buildDraftFromHabit = (habit: HabitItem): HabitDraft => ({
+  name: habit.name,
+  icon: habit.icon,
+  accentColor: habit.accentColor,
+  goalMode: habit.goalMode,
+  targetPerPeriod: String(habit.targetPerPeriod),
+  schedule: [...habit.schedule.days],
+  reminderEnabled: habit.reminder.enabled,
+  reminderTime: habit.reminder.time ?? '20:00',
+});
+
+export function CreateHabitSheet({
+  visible,
+  onClose,
+  initialHabit,
+}: CreateHabitSheetProps) {
   const theme = useTheme();
   const createHabit = useAppStore((state) => state.createHabit);
+  const updateHabit = useAppStore((state) => state.updateHabit);
+  const archiveHabit = useAppStore((state) => state.archiveHabit);
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
+  const setLastArchivedItem = useUiStore((state) => state.setLastArchivedItem);
   const [draft, setDraft] = useState<HabitDraft>(createDraft);
   const translateYValue = useRef(new Animated.Value(800)).current;
 
   useEffect(() => {
-    if (visible) {
-      Animated.spring(translateYValue, {
-        toValue: 0,
-        bounciness: 4,
-        useNativeDriver: true,
-      }).start();
+    setGestureBlock('habit-sheet', visible);
+
+    if (!visible) {
+      return;
     }
-  }, [visible, translateYValue]);
+
+    setDraft(initialHabit ? buildDraftFromHabit(initialHabit) : createDraft());
+    translateYValue.setValue(800);
+
+    Animated.spring(translateYValue, {
+      toValue: 0,
+      bounciness: 4,
+      useNativeDriver: true,
+    }).start();
+  }, [initialHabit, setGestureBlock, translateYValue, visible]);
 
   const closeSheet = useCallback(() => {
     Animated.timing(translateYValue, {
       toValue: 800,
       duration: 180,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
       onClose();
-      setDraft(createDraft());
     });
-  }, [translateYValue, onClose]);
+  }, [onClose, translateYValue]);
 
-  const sheetPanResponder = useCallback(
+  const resetSheetPosition = useCallback(() => {
+    Animated.spring(translateYValue, {
+      toValue: 0,
+      useNativeDriver: true,
+      bounciness: 6,
+    }).start();
+  }, [translateYValue]);
+
+  const sheetPanResponder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gs) =>
@@ -92,41 +129,41 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
             closeSheet();
             return;
           }
-          Animated.spring(translateYValue, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-          }).start();
+          resetSheetPosition();
         },
-        onPanResponderTerminate: () => {
-          Animated.spring(translateYValue, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-          }).start();
-        },
+        onPanResponderTerminate: resetSheetPosition,
       }),
-    [closeSheet, translateYValue],
+    [closeSheet, resetSheetPosition, translateYValue],
   );
 
   const handleSave = () => {
-    if (!draft.name.trim() || draft.schedule.length === 0) return;
-    createHabit({
+    if (!draft.name.trim() || draft.schedule.length === 0) {
+      return;
+    }
+
+    const payload = {
       name: draft.name.trim(),
       icon: draft.icon,
       accentColor: draft.accentColor,
       goalMode: draft.goalMode,
       targetPerPeriod: Number(draft.targetPerPeriod) || 1,
-      schedule: { days: draft.schedule as (0 | 1 | 2 | 3 | 4 | 5 | 6)[] },
+      schedule: {
+        days: draft.schedule as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+      },
       reminder: {
         enabled: draft.reminderEnabled,
         time: draft.reminderEnabled ? draft.reminderTime : null,
       },
-    });
+    };
+
+    if (initialHabit) {
+      updateHabit(initialHabit.id, payload);
+    } else {
+      createHabit(payload);
+    }
+
     closeSheet();
   };
-
-  const panHandlers = sheetPanResponder().panHandlers;
 
   return (
     <Modal
@@ -141,12 +178,12 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
           style={[
             styles.sheet,
             {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.surfaceFloating,
               transform: [{ translateY: translateYValue }],
             },
           ]}
         >
-          <View {...panHandlers} style={styles.dragArea}>
+          <View {...sheetPanResponder.panHandlers} style={styles.dragArea}>
             <View
               style={[
                 styles.dragHandle,
@@ -155,10 +192,12 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
             />
           </View>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            Create habit
+            {initialHabit ? 'Edit habit' : 'Create habit'}
           </Text>
           <TextInput
-            onChangeText={(v) => setDraft((d) => ({ ...d, name: v }))}
+            onChangeText={(value) =>
+              setDraft((current) => ({ ...current, name: value }))
+            }
             placeholder="Habit name"
             placeholderTextColor={theme.colors.textMuted}
             style={[
@@ -175,7 +214,7 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
               {habitIcons.map((icon) => (
                 <Pressable
                   key={icon}
-                  onPress={() => setDraft((d) => ({ ...d, icon }))}
+                  onPress={() => setDraft((current) => ({ ...current, icon }))}
                   style={({ pressed }) => [
                     styles.chip,
                     {
@@ -210,15 +249,19 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
                 <Pressable
                   key={color}
                   onPress={() =>
-                    setDraft((d) => ({ ...d, accentColor: color }))
+                    setDraft((current) => ({
+                      ...current,
+                      accentColor: color,
+                    }))
                   }
-                  style={[
+                  style={({ pressed }) => [
                     styles.swatch,
                     { backgroundColor: color },
                     draft.accentColor === color && {
                       borderWidth: 3,
                       borderColor: theme.colors.brandStrong,
                     },
+                    pressed && styles.chipPressed,
                   ]}
                 />
               ))}
@@ -230,14 +273,17 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
               return (
                 <Pressable
                   key={mode}
-                  onPress={() => setDraft((d) => ({ ...d, goalMode: mode }))}
-                  style={[
+                  onPress={() =>
+                    setDraft((current) => ({ ...current, goalMode: mode }))
+                  }
+                  style={({ pressed }) => [
                     styles.segment,
                     {
                       backgroundColor: active
                         ? theme.colors.brand
                         : theme.colors.surfaceMuted,
                     },
+                    pressed && styles.chipPressed,
                   ]}
                 >
                   <Text
@@ -258,8 +304,8 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
           </View>
           <TextInput
             keyboardType="number-pad"
-            onChangeText={(v) =>
-              setDraft((d) => ({ ...d, targetPerPeriod: v }))
+            onChangeText={(value) =>
+              setDraft((current) => ({ ...current, targetPerPeriod: value }))
             }
             placeholder="Target per period"
             placeholderTextColor={theme.colors.textMuted}
@@ -284,20 +330,21 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
                 <Pressable
                   key={`${label}-${day}`}
                   onPress={() =>
-                    setDraft((d) => ({
-                      ...d,
+                    setDraft((current) => ({
+                      ...current,
                       schedule: active
-                        ? d.schedule.filter((item) => item !== day)
-                        : [...d.schedule, day].sort(),
+                        ? current.schedule.filter((item) => item !== day)
+                        : [...current.schedule, day].sort(),
                     }))
                   }
-                  style={[
+                  style={({ pressed }) => [
                     styles.dayChip,
                     {
                       backgroundColor: active
                         ? theme.colors.brand
                         : theme.colors.surfaceMuted,
                     },
+                    pressed && styles.chipPressed,
                   ]}
                 >
                   <Text
@@ -319,15 +366,19 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
           <View style={styles.inlineRow}>
             <Pressable
               onPress={() =>
-                setDraft((d) => ({ ...d, reminderEnabled: !d.reminderEnabled }))
+                setDraft((current) => ({
+                  ...current,
+                  reminderEnabled: !current.reminderEnabled,
+                }))
               }
-              style={[
+              style={({ pressed }) => [
                 styles.segment,
                 {
                   backgroundColor: draft.reminderEnabled
                     ? theme.colors.brand
                     : theme.colors.surfaceMuted,
                 },
+                pressed && styles.chipPressed,
               ]}
             >
               <Text
@@ -344,7 +395,9 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
               </Text>
             </Pressable>
             <TextInput
-              onChangeText={(v) => setDraft((d) => ({ ...d, reminderTime: v }))}
+              onChangeText={(value) =>
+                setDraft((current) => ({ ...current, reminderTime: value }))
+              }
               placeholder="20:00"
               placeholderTextColor={theme.colors.textMuted}
               style={[
@@ -359,6 +412,32 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
             />
           </View>
           <View style={styles.actions}>
+            {initialHabit ? (
+              <Pressable
+                onPress={() => {
+                  archiveHabit(initialHabit.id);
+                  setLastArchivedItem({
+                    id: initialHabit.id,
+                    kind: 'habit',
+                    title: initialHabit.name,
+                  });
+                  closeSheet();
+                }}
+                style={[
+                  styles.btn,
+                  { backgroundColor: theme.colors.accentRedSoft },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.archiveLabel,
+                    { color: theme.colors.accentRed },
+                  ]}
+                >
+                  Archive
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={closeSheet}
               style={[
@@ -366,13 +445,24 @@ export function CreateHabitSheet({ visible, onClose }: CreateHabitSheetProps) {
                 { backgroundColor: theme.colors.surfaceMuted },
               ]}
             >
-              <Text style={{ color: theme.colors.textPrimary }}>Close</Text>
+              <Text
+                style={[
+                  styles.actionLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Close
+              </Text>
             </Pressable>
             <Pressable
               onPress={handleSave}
               style={[styles.btn, { backgroundColor: theme.colors.brand }]}
             >
-              <Text style={{ color: theme.colors.surface }}>Create</Text>
+              <Text
+                style={[styles.actionLabel, { color: theme.colors.surface }]}
+              >
+                {initialHabit ? 'Save' : 'Create'}
+              </Text>
             </Pressable>
           </View>
         </Animated.View>
@@ -442,4 +532,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  archiveLabel: { ...typography.bodyStrong },
+  actionLabel: { ...typography.bodyStrong },
 });

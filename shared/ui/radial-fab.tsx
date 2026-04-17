@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useUiStore } from '@/shared/store/ui-store';
 import { spacing, typography, useTheme } from '@/shared/theme';
 
 export interface RadialFabItem {
@@ -22,34 +23,41 @@ export interface RadialFabItem {
 
 interface RadialFabProps {
   items: RadialFabItem[];
-  onPress?: () => void;
+  onPress: () => void;
   longPressDelay?: number;
 }
 
-const ARC_RADIUS = 90;
+const BASE_ARC_RADIUS = 72;
+const ARC_RADIUS_STEP = 20;
 const MAIN_SIZE = 56;
 const ITEM_SIZE = 48;
 const ANIM_DURATION = 240;
 
 function calcArcOffset(index: number, total: number) {
-  const startAngle = 180;
-  const endAngle = 90;
+  const startAngle = 165;
+  const endAngle = 100;
   const angleDeg =
-    total === 1
-      ? 135
+    total <= 1
+      ? 132
       : startAngle - (startAngle - endAngle) * (index / (total - 1));
   const angleRad = (angleDeg * Math.PI) / 180;
+  const radius = BASE_ARC_RADIUS + index * ARC_RADIUS_STEP;
   return {
-    x: ARC_RADIUS * Math.cos(angleRad),
-    y: -ARC_RADIUS * Math.sin(angleRad),
+    x: radius * Math.cos(angleRad),
+    y: -radius * Math.sin(angleRad),
   };
 }
 
-export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
+export function RadialFab({
+  items,
+  onPress,
+  longPressDelay = 200,
+}: RadialFabProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [, setIsOpen] = useState(false);
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const isOpenRef = useRef(false);
   const hoveredIndexRef = useRef<number | null>(null);
@@ -70,8 +78,8 @@ export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   const openMenu = useCallback(() => {
-    setIsOpen(true);
     isOpenRef.current = true;
+    setMenuOpen(true);
 
     Animated.timing(backdropOpacity, {
       toValue: 1,
@@ -111,8 +119,8 @@ export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
   }, [backdropOpacity, itemAnims, items]);
 
   const closeMenu = useCallback(() => {
-    setIsOpen(false);
     isOpenRef.current = false;
+    setMenuOpen(false);
     setHoveredIndex(null);
     hoveredIndexRef.current = null;
 
@@ -156,6 +164,10 @@ export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    setGestureBlock('radial-fab', menuOpen);
+  }, [menuOpen, setGestureBlock]);
 
   const panResponder = useMemo(
     () =>
@@ -204,9 +216,10 @@ export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
                 items[selected].onPress();
               }, 50);
             }
-          } else {
-            if (onPress) onPress();
+            return;
           }
+
+          onPress();
         },
         onPanResponderTerminate: () => {
           if (timerRef.current) clearTimeout(timerRef.current);
@@ -215,7 +228,7 @@ export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
           }
         },
       }),
-    [closeMenu, items, longPressDelay, openMenu],
+    [closeMenu, items, longPressDelay, onPress, openMenu],
   );
 
   return (
@@ -260,7 +273,7 @@ export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
                   {
                     backgroundColor: isHovered
                       ? theme.colors.brand
-                      : theme.colors.surfaceElevated,
+                      : theme.colors.surfaceFloating,
                     shadowColor: theme.shadows.card.shadowColor,
                   },
                 ]}
@@ -300,7 +313,20 @@ export function RadialFab({ items, longPressDelay = 200 }: RadialFabProps) {
           );
         })}
 
-        <View {...panResponder.panHandlers} style={styles.mainButton}>
+        <View
+          {...panResponder.panHandlers}
+          style={[
+            styles.mainButton,
+            {
+              backgroundColor: theme.colors.surfaceFloating,
+              shadowColor: theme.shadows.button.shadowColor,
+              shadowOffset: theme.shadows.button.shadowOffset,
+              shadowOpacity: theme.shadows.button.shadowOpacity,
+              shadowRadius: theme.shadows.button.shadowRadius,
+              elevation: theme.shadows.button.elevation,
+            },
+          ]}
+        >
           <Ionicons
             color={theme.colors.brand}
             name="finger-print-outline"
@@ -326,7 +352,7 @@ const styles = StyleSheet.create({
     right: MAIN_SIZE / 2 - ITEM_SIZE / 2,
     bottom: MAIN_SIZE / 2 - ITEM_SIZE / 2,
     height: ITEM_SIZE,
-    width: ITEM_SIZE + 100,
+    width: ITEM_SIZE + 124,
     justifyContent: 'center',
     alignItems: 'flex-end',
   },

@@ -70,6 +70,7 @@ interface AppStore extends AppState {
     patch: Partial<TaskItem> & { dueDate?: string; dueTime?: string },
   ) => void;
   archiveTask: (id: string) => void;
+  restoreTask: (id: string) => void;
   completeTaskOccurrence: (taskId: string, occurrenceDate: string) => void;
   createTaskCategory: (
     input: Pick<TaskCategoryEntity, 'label' | 'color'>,
@@ -79,6 +80,7 @@ interface AppStore extends AppState {
   createHabit: (input: CreateHabitInput) => void;
   updateHabit: (id: string, patch: Partial<HabitItem>) => void;
   archiveHabit: (id: string) => void;
+  restoreHabit: (id: string) => void;
   markHabitComplete: (id: string, date: string) => void;
   setNotificationPreferences: (input: NotificationPreferences) => Promise<void>;
   setDisplayPreferences: (
@@ -113,7 +115,6 @@ const persistSnapshot = async (state: AppState) => {
     await syncWaterNotifications(state);
     await syncHabitNotifications(state);
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error('[AppStore] Failed to persist app state:', error);
   }
 };
@@ -247,6 +248,7 @@ export const useAppStore = create<AppStore>((set) => ({
             dueAt: combineDateAndTime(input.dueDate, input.dueTime),
             completedAt: null,
             archived: false,
+            archivedAt: null,
           },
           ...state.tasks,
         ],
@@ -281,7 +283,26 @@ export const useAppStore = create<AppStore>((set) => ({
       const nextState = {
         ...buildSnapshot(state),
         tasks: state.tasks.map((task) =>
-          task.id === id ? { ...task, archived: true } : task,
+          task.id === id
+            ? {
+                ...task,
+                archived: true,
+                archivedAt: task.archivedAt ?? new Date().toISOString(),
+              }
+            : task,
+        ),
+      };
+      void persistSnapshot(nextState);
+      return nextState;
+    }),
+  restoreTask: (id) =>
+    set((state) => {
+      const nextState = {
+        ...buildSnapshot(state),
+        tasks: state.tasks.map((task) =>
+          task.id === id
+            ? { ...task, archived: false, archivedAt: null }
+            : task,
         ),
       };
       void persistSnapshot(nextState);
@@ -369,6 +390,7 @@ export const useAppStore = create<AppStore>((set) => ({
             targetPerPeriod: input.targetPerPeriod,
             schedule: input.schedule,
             archived: false,
+            archivedAt: null,
             reminder: input.reminder,
             completions: [],
           },
@@ -394,7 +416,26 @@ export const useAppStore = create<AppStore>((set) => ({
       const nextState = {
         ...buildSnapshot(state),
         habits: state.habits.map((habit) =>
-          habit.id === id ? { ...habit, archived: true } : habit,
+          habit.id === id
+            ? {
+                ...habit,
+                archived: true,
+                archivedAt: habit.archivedAt ?? new Date().toISOString(),
+              }
+            : habit,
+        ),
+      };
+      void persistSnapshot(nextState);
+      return nextState;
+    }),
+  restoreHabit: (id) =>
+    set((state) => {
+      const nextState = {
+        ...buildSnapshot(state),
+        habits: state.habits.map((habit) =>
+          habit.id === id
+            ? { ...habit, archived: false, archivedAt: null }
+            : habit,
         ),
       };
       void persistSnapshot(nextState);

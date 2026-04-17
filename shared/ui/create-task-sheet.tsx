@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   Modal,
   PanResponder,
   Pressable,
@@ -13,13 +14,29 @@ import {
 
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
+import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
-import type { TaskPriority, TaskRepeatRule } from '@/shared/types/app';
+import type {
+  TaskItem,
+  TaskPriority,
+  TaskRepeatRule,
+} from '@/shared/types/app';
 
 interface CreateTaskSheetProps {
   visible: boolean;
   onClose: () => void;
   initialCategoryId?: string;
+  initialTask?: TaskItem | null;
+}
+
+interface TaskDraft {
+  title: string;
+  notes: string;
+  categoryId: string;
+  dueDate: string;
+  dueTime: string;
+  priority: TaskPriority;
+  repeatRule: TaskRepeatRule;
 }
 
 const priorities: TaskPriority[] = ['low', 'medium', 'high'];
@@ -31,54 +48,108 @@ const repeatOptions: { label: string; value: TaskRepeatRule }[] = [
   { label: 'Custom', value: { type: 'custom', days: [1, 3, 5] } },
 ];
 
-const createInitialDraft = (categoryId: string) => ({
-  id: null as string | null,
+const createTaskDraft = (categoryId: string): TaskDraft => ({
   title: '',
   notes: '',
   categoryId,
   dueDate: toDateKey(new Date()),
   dueTime: '18:00',
-  priority: 'medium' as TaskPriority,
-  repeatRule: { type: 'none' } as TaskRepeatRule,
+  priority: 'medium',
+  repeatRule: { type: 'none' },
 });
+
+const buildDraftFromTask = (task: TaskItem): TaskDraft => {
+  const due = new Date(task.dueAt);
+  return {
+    title: task.title,
+    notes: task.notes,
+    categoryId: task.categoryId,
+    dueDate: toDateKey(due),
+    dueTime: `${String(due.getHours()).padStart(2, '0')}:${String(
+      due.getMinutes(),
+    ).padStart(2, '0')}`,
+    priority: task.priority,
+    repeatRule: task.repeatRule,
+  };
+};
 
 export function CreateTaskSheet({
   visible,
   onClose,
   initialCategoryId,
+  initialTask,
 }: CreateTaskSheetProps) {
   const theme = useTheme();
   const taskCategories = useAppStore((state) => state.taskCategories);
   const createTask = useAppStore((state) => state.createTask);
+  const updateTask = useAppStore((state) => state.updateTask);
+  const archiveTask = useAppStore((state) => state.archiveTask);
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
+  const setLastArchivedItem = useUiStore((state) => state.setLastArchivedItem);
 
   const categories = useMemo(
     () => taskCategories.filter((item) => !item.archived),
     [taskCategories],
   );
 
-  const draftCategoryId = initialCategoryId ?? categories[0]?.id ?? 'work';
-  const [draft, setDraft] = useState(() => createInitialDraft(draftCategoryId));
+  const fallbackCategoryId = initialCategoryId ?? categories[0]?.id ?? 'work';
+  const [draft, setDraft] = useState<TaskDraft>(() =>
+    createTaskDraft(fallbackCategoryId),
+  );
   const translateYValue = useRef(new Animated.Value(800)).current;
 
   useEffect(() => {
-    if (visible) {
-      Animated.spring(translateYValue, {
-        toValue: 0,
-        bounciness: 4,
-        useNativeDriver: true,
-      }).start();
+    setGestureBlock('task-sheet', visible);
+
+    if (!visible) {
+      return;
     }
-  }, [visible, translateYValue]);
+
+    const nextCategoryId =
+      initialTask?.categoryId ??
+      initialCategoryId ??
+      categories[0]?.id ??
+      'work';
+
+    setDraft(
+      initialTask
+        ? buildDraftFromTask(initialTask)
+        : createTaskDraft(nextCategoryId),
+    );
+    translateYValue.setValue(800);
+
+    Animated.spring(translateYValue, {
+      toValue: 0,
+      bounciness: 4,
+      useNativeDriver: true,
+    }).start();
+  }, [
+    categories,
+    initialCategoryId,
+    initialTask,
+    setGestureBlock,
+    translateYValue,
+    visible,
+  ]);
 
   const closeSheet = useCallback(() => {
     Animated.timing(translateYValue, {
       toValue: 800,
       duration: 180,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
       onClose();
     });
-  }, [translateYValue, onClose]);
+  }, [onClose, translateYValue]);
+
+  const resetSheetPosition = useCallback(() => {
+    Animated.spring(translateYValue, {
+      toValue: 0,
+      useNativeDriver: true,
+      bounciness: 6,
+    }).start();
+  }, [translateYValue]);
 
   const sheetPanResponder = useMemo(
     () =>
@@ -93,35 +164,40 @@ export function CreateTaskSheet({
             closeSheet();
             return;
           }
-          Animated.spring(translateYValue, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-          }).start();
+          resetSheetPosition();
         },
-        onPanResponderTerminate: () => {
-          Animated.spring(translateYValue, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-          }).start();
-        },
+        onPanResponderTerminate: resetSheetPosition,
       }),
-    [closeSheet, translateYValue],
+    [closeSheet, resetSheetPosition, translateYValue],
   );
 
   const handleSave = () => {
-    if (!draft.title.trim()) return;
-    createTask({
-      title: draft.title.trim(),
-      notes: draft.notes,
-      priority: draft.priority,
-      repeatRule: draft.repeatRule,
-      categoryId: draft.categoryId,
-      dueDate: draft.dueDate,
-      dueTime: draft.dueTime,
-    });
-    setDraft(createInitialDraft(draftCategoryId));
+    if (!draft.title.trim()) {
+      return;
+    }
+
+    if (initialTask) {
+      updateTask(initialTask.id, {
+        title: draft.title.trim(),
+        notes: draft.notes,
+        categoryId: draft.categoryId,
+        dueDate: draft.dueDate,
+        dueTime: draft.dueTime,
+        priority: draft.priority,
+        repeatRule: draft.repeatRule,
+      });
+    } else {
+      createTask({
+        title: draft.title.trim(),
+        notes: draft.notes,
+        priority: draft.priority,
+        repeatRule: draft.repeatRule,
+        categoryId: draft.categoryId,
+        dueDate: draft.dueDate,
+        dueTime: draft.dueTime,
+      });
+    }
+
     closeSheet();
   };
 
@@ -138,7 +214,7 @@ export function CreateTaskSheet({
           style={[
             styles.sheet,
             {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.surfaceFloating,
               transform: [{ translateY: translateYValue }],
             },
           ]}
@@ -152,10 +228,12 @@ export function CreateTaskSheet({
             />
           </View>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            Create task
+            {initialTask ? 'Edit task' : 'Create task'}
           </Text>
           <TextInput
-            onChangeText={(v) => setDraft((d) => ({ ...d, title: v }))}
+            onChangeText={(value) =>
+              setDraft((current) => ({ ...current, title: value }))
+            }
             placeholder="Task title"
             placeholderTextColor={theme.colors.textMuted}
             style={[
@@ -169,7 +247,9 @@ export function CreateTaskSheet({
           />
           <TextInput
             multiline
-            onChangeText={(v) => setDraft((d) => ({ ...d, notes: v }))}
+            onChangeText={(value) =>
+              setDraft((current) => ({ ...current, notes: value }))
+            }
             placeholder="Notes"
             placeholderTextColor={theme.colors.textMuted}
             style={[
@@ -184,17 +264,20 @@ export function CreateTaskSheet({
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.optionRow}>
-              {categories.map((cat) => (
+              {categories.map((category) => (
                 <Pressable
-                  key={cat.id}
+                  key={category.id}
                   onPress={() =>
-                    setDraft((d) => ({ ...d, categoryId: cat.id }))
+                    setDraft((current) => ({
+                      ...current,
+                      categoryId: category.id,
+                    }))
                   }
                   style={({ pressed }) => [
                     styles.chip,
                     {
                       backgroundColor:
-                        draft.categoryId === cat.id
+                        draft.categoryId === category.id
                           ? theme.colors.brand
                           : theme.colors.surfaceMuted,
                     },
@@ -206,13 +289,13 @@ export function CreateTaskSheet({
                       styles.chipLabel,
                       {
                         color:
-                          draft.categoryId === cat.id
+                          draft.categoryId === category.id
                             ? theme.colors.surface
                             : theme.colors.textPrimary,
                       },
                     ]}
                   >
-                    {cat.label}
+                    {category.label}
                   </Text>
                 </Pressable>
               ))}
@@ -220,7 +303,9 @@ export function CreateTaskSheet({
           </ScrollView>
           <View style={styles.inlineRow}>
             <TextInput
-              onChangeText={(v) => setDraft((d) => ({ ...d, dueDate: v }))}
+              onChangeText={(value) =>
+                setDraft((current) => ({ ...current, dueDate: value }))
+              }
               placeholder="YYYY-MM-DD"
               placeholderTextColor={theme.colors.textMuted}
               style={[
@@ -234,7 +319,9 @@ export function CreateTaskSheet({
               value={draft.dueDate}
             />
             <TextInput
-              onChangeText={(v) => setDraft((d) => ({ ...d, dueTime: v }))}
+              onChangeText={(value) =>
+                setDraft((current) => ({ ...current, dueTime: value }))
+              }
               placeholder="HH:MM"
               placeholderTextColor={theme.colors.textMuted}
               style={[
@@ -250,15 +337,17 @@ export function CreateTaskSheet({
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.optionRow}>
-              {priorities.map((p) => (
+              {priorities.map((priority) => (
                 <Pressable
-                  key={p}
-                  onPress={() => setDraft((d) => ({ ...d, priority: p }))}
+                  key={priority}
+                  onPress={() =>
+                    setDraft((current) => ({ ...current, priority }))
+                  }
                   style={({ pressed }) => [
                     styles.chip,
                     {
                       backgroundColor:
-                        draft.priority === p
+                        draft.priority === priority
                           ? theme.colors.brand
                           : theme.colors.surfaceMuted,
                     },
@@ -270,13 +359,13 @@ export function CreateTaskSheet({
                       styles.chipLabel,
                       {
                         color:
-                          draft.priority === p
+                          draft.priority === priority
                             ? theme.colors.surface
                             : theme.colors.textPrimary,
                       },
                     ]}
                   >
-                    {p}
+                    {priority}
                   </Text>
                 </Pressable>
               ))}
@@ -284,17 +373,20 @@ export function CreateTaskSheet({
           </ScrollView>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.optionRow}>
-              {repeatOptions.map((opt) => (
+              {repeatOptions.map((option) => (
                 <Pressable
-                  key={opt.label}
+                  key={option.label}
                   onPress={() =>
-                    setDraft((d) => ({ ...d, repeatRule: opt.value }))
+                    setDraft((current) => ({
+                      ...current,
+                      repeatRule: option.value,
+                    }))
                   }
                   style={({ pressed }) => [
                     styles.chip,
                     {
                       backgroundColor:
-                        draft.repeatRule.type === opt.value.type
+                        draft.repeatRule.type === option.value.type
                           ? theme.colors.brand
                           : theme.colors.surfaceMuted,
                     },
@@ -306,19 +398,45 @@ export function CreateTaskSheet({
                       styles.chipLabel,
                       {
                         color:
-                          draft.repeatRule.type === opt.value.type
+                          draft.repeatRule.type === option.value.type
                             ? theme.colors.surface
                             : theme.colors.textPrimary,
                       },
                     ]}
                   >
-                    {opt.label}
+                    {option.label}
                   </Text>
                 </Pressable>
               ))}
             </View>
           </ScrollView>
           <View style={styles.actions}>
+            {initialTask ? (
+              <Pressable
+                onPress={() => {
+                  archiveTask(initialTask.id);
+                  setLastArchivedItem({
+                    id: initialTask.id,
+                    kind: 'task',
+                    title: initialTask.title,
+                  });
+                  closeSheet();
+                }}
+                style={[
+                  styles.btn,
+                  { backgroundColor: theme.colors.accentRedSoft },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.archiveLabel,
+                    { color: theme.colors.accentRed },
+                  ]}
+                >
+                  Archive
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={closeSheet}
               style={[
@@ -326,13 +444,24 @@ export function CreateTaskSheet({
                 { backgroundColor: theme.colors.surfaceMuted },
               ]}
             >
-              <Text style={{ color: theme.colors.textPrimary }}>Close</Text>
+              <Text
+                style={[
+                  styles.actionLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Close
+              </Text>
             </Pressable>
             <Pressable
               onPress={handleSave}
               style={[styles.btn, { backgroundColor: theme.colors.brand }]}
             >
-              <Text style={{ color: theme.colors.surface }}>Create</Text>
+              <Text
+                style={[styles.actionLabel, { color: theme.colors.surface }]}
+              >
+                {initialTask ? 'Save' : 'Create'}
+              </Text>
             </Pressable>
           </View>
         </Animated.View>
@@ -382,4 +511,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  archiveLabel: { ...typography.bodyStrong },
+  actionLabel: { ...typography.bodyStrong },
 });

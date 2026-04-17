@@ -8,12 +8,42 @@ import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 const settingsLinks = [
-  { href: '/settings/water', label: 'Water' },
-  { href: '/settings/categories', label: 'Task categories' },
-  { href: '/settings/notifications', label: 'Notifications' },
-  { href: '/settings/display', label: 'Display & theme' },
-  { href: '/settings/archive', label: 'Archive center' },
-  { href: '/settings/data', label: 'Data' },
+  {
+    href: '/settings/water',
+    label: 'Water',
+    summary: 'Goal, quick buttons and hydration defaults',
+    icon: 'water-outline',
+  },
+  {
+    href: '/settings/categories',
+    label: 'Task categories',
+    summary: 'Create, edit and archive custom categories',
+    icon: 'pricetags-outline',
+  },
+  {
+    href: '/settings/notifications',
+    label: 'Notifications',
+    summary: 'Reminder timing and cutoff rules',
+    icon: 'notifications-outline',
+  },
+  {
+    href: '/settings/display',
+    label: 'Display & theme',
+    summary: 'Theme mode, clock format and week start',
+    icon: 'color-palette-outline',
+  },
+  {
+    href: '/settings/archive',
+    label: 'Archive center',
+    summary: 'Restore archived tasks and habits',
+    icon: 'archive-outline',
+  },
+  {
+    href: '/settings/data',
+    label: 'Data',
+    summary: 'Export, import and reset local state',
+    icon: 'download-outline',
+  },
 ];
 
 export default function ProfileScreen() {
@@ -30,6 +60,34 @@ export default function ProfileScreen() {
     () => allCategories.filter((category) => !category.archived),
     [allCategories],
   );
+
+  const overviewRows = [
+    {
+      label: 'Water plan',
+      value: `${preferences.dailyWaterTargetMl} ml`,
+      detail: `${preferences.quickWaterAmounts.length} quick buttons`,
+    },
+    {
+      label: 'Active habits',
+      value: String(habits.length),
+      detail: 'Tracked inside the Habits tab',
+    },
+    {
+      label: 'Task categories',
+      value: String(categories.length),
+      detail: 'Preset and custom filters',
+    },
+    {
+      label: 'Appearance',
+      value:
+        preferences.themeMode === 'system'
+          ? 'System'
+          : preferences.themeMode === 'dark'
+            ? 'Dark'
+            : 'Light',
+      detail: `${preferences.timeFormat} clock`,
+    },
+  ];
 
   return (
     <ScreenShell
@@ -72,7 +130,7 @@ export default function ProfileScreen() {
           {preferences.displayName}
         </Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          Focus, hydration and rituals in one calm space.
+          Local settings hub for hydration, tasks, habits and release checks.
         </Text>
       </View>
 
@@ -92,46 +150,29 @@ export default function ProfileScreen() {
         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
           Overview
         </Text>
-        <View style={styles.row}>
-          <Text style={[styles.key, { color: theme.colors.textSecondary }]}>
-            Water goal
-          </Text>
-          <Text style={[styles.value, { color: theme.colors.textPrimary }]}>
-            {preferences.dailyWaterTargetMl} ml
-          </Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={[styles.key, { color: theme.colors.textSecondary }]}>
-            Quick amounts
-          </Text>
-          <Text style={[styles.value, { color: theme.colors.textPrimary }]}>
-            {preferences.quickWaterAmounts.join(', ')}
-          </Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={[styles.key, { color: theme.colors.textSecondary }]}>
-            Categories
-          </Text>
-          <Text style={[styles.value, { color: theme.colors.textPrimary }]}>
-            {categories.length}
-          </Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={[styles.key, { color: theme.colors.textSecondary }]}>
-            Habits
-          </Text>
-          <Text style={[styles.value, { color: theme.colors.textPrimary }]}>
-            {habits.length}
-          </Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={[styles.key, { color: theme.colors.textSecondary }]}>
-            Theme
-          </Text>
-          <Text style={[styles.value, { color: theme.colors.textPrimary }]}>
-            {preferences.themeMode}
-          </Text>
-        </View>
+        {overviewRows.map((row) => (
+          <View
+            key={row.label}
+            style={[
+              styles.overviewRow,
+              { backgroundColor: theme.colors.surfaceMuted },
+            ]}
+          >
+            <View style={styles.overviewCopy}>
+              <Text style={[styles.key, { color: theme.colors.textPrimary }]}>
+                {row.label}
+              </Text>
+              <Text
+                style={[styles.detail, { color: theme.colors.textSecondary }]}
+              >
+                {row.detail}
+              </Text>
+            </View>
+            <Text style={[styles.value, { color: theme.colors.textPrimary }]}>
+              {row.value}
+            </Text>
+          </View>
+        ))}
       </View>
 
       <View
@@ -148,11 +189,11 @@ export default function ProfileScreen() {
         ]}
       >
         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-          Start guide
+          Release prep
         </Text>
         <Text style={[styles.helper, { color: theme.colors.textSecondary }]}>
-          Replay the quick tour any time before release or after a major
-          settings change.
+          Replay the onboarding guide after larger UI changes and before final
+          QA.
         </Text>
         <Pressable
           onPress={() => setAppTourSeen(false)}
@@ -185,14 +226,46 @@ export default function ProfileScreen() {
           Settings
         </Text>
         {settingsLinks.map((item) => (
-          <Link
-            href={item.href as never}
-            key={item.href}
-            style={styles.linkRow}
-          >
-            <Text style={[styles.linkText, { color: theme.colors.brand }]}>
-              {item.label}
-            </Text>
+          <Link asChild href={item.href as never} key={item.href}>
+            <Pressable
+              style={[
+                styles.settingsRow,
+                { backgroundColor: theme.colors.surfaceMuted },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: theme.colors.surfaceFloating },
+                ]}
+              >
+                <Ionicons
+                  color={theme.colors.brand}
+                  name={item.icon as never}
+                  size={18}
+                />
+              </View>
+              <View style={styles.settingsCopy}>
+                <Text
+                  style={[styles.linkText, { color: theme.colors.textPrimary }]}
+                >
+                  {item.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.linkSummary,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {item.summary}
+                </Text>
+              </View>
+              <Ionicons
+                color={theme.colors.textMuted}
+                name="chevron-forward"
+                size={18}
+              />
+            </Pressable>
           </Link>
         ))}
       </View>
@@ -234,15 +307,20 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   cardTitle: { ...typography.h2 },
-  helper: { ...typography.body },
-  row: {
+  overviewRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
+    borderRadius: 24,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
   },
-  key: { ...typography.body },
+  overviewCopy: { flex: 1, gap: 2 },
+  key: { ...typography.bodyStrong },
+  detail: { ...typography.caption, lineHeight: 18 },
   value: { ...typography.bodyStrong },
+  helper: { ...typography.body },
   tourButton: {
     minHeight: 52,
     borderRadius: radii.button,
@@ -250,8 +328,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tourLabel: { ...typography.bodyStrong },
-  linkRow: { paddingVertical: 10 },
-  linkText: { ...typography.bodyStrong },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: 24,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsCopy: { flex: 1, gap: 2 },
+  linkText: { ...typography.bodyStrong, fontSize: 16 },
+  linkSummary: { ...typography.caption, lineHeight: 18 },
   pressed: {
     opacity: 0.92,
     transform: [{ scale: 0.985 }],

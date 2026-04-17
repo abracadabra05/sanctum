@@ -1,16 +1,47 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 const links = [
-  { href: '/settings/water', label: 'Water preferences' },
-  { href: '/settings/categories', label: 'Task categories' },
-  { href: '/settings/notifications', label: 'Notifications' },
-  { href: '/settings/display', label: 'Display & theme' },
-  { href: '/settings/archive', label: 'Archive center' },
-  { href: '/settings/data', label: 'Export / import / reset' },
+  {
+    href: '/settings/water',
+    label: 'Water',
+    summary: 'Goal, quick buttons and hydration defaults',
+    icon: 'water-outline',
+  },
+  {
+    href: '/settings/categories',
+    label: 'Task categories',
+    summary: 'Create, edit and archive custom categories',
+    icon: 'pricetags-outline',
+  },
+  {
+    href: '/settings/notifications',
+    label: 'Notifications',
+    summary: 'Water reminder timing and cutoff rules',
+    icon: 'notifications-outline',
+  },
+  {
+    href: '/settings/display',
+    label: 'Display & theme',
+    summary: 'Theme mode, time format and week start',
+    icon: 'color-palette-outline',
+  },
+  {
+    href: '/settings/archive',
+    label: 'Archive center',
+    summary: 'Restore archived tasks and habits',
+    icon: 'archive-outline',
+  },
+  {
+    href: '/settings/data',
+    label: 'Data',
+    summary: 'Export, import and reset local data',
+    icon: 'download-outline',
+  },
 ];
 
 export default function SettingsIndexScreen() {
@@ -35,17 +66,56 @@ export default function SettingsIndexScreen() {
           Settings
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Tune your calm, local-first Sanctum experience.
+          App-level controls live here. Data stays local unless you export it.
         </Text>
-        {links.map((link) => (
-          <Link
-            href={link.href as never}
-            key={link.href}
-            style={[styles.link, { color: theme.colors.brand }]}
-          >
-            {link.label}
-          </Link>
-        ))}
+        <View style={styles.list}>
+          {links.map((link) => (
+            <Link asChild href={link.href as never} key={link.href}>
+              <Pressable
+                style={[
+                  styles.row,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.iconWrap,
+                    { backgroundColor: theme.colors.surfaceFloating },
+                  ]}
+                >
+                  <Ionicons
+                    color={theme.colors.brand}
+                    name={link.icon as never}
+                    size={18}
+                  />
+                </View>
+                <View style={styles.copy}>
+                  <Text
+                    style={[
+                      styles.rowTitle,
+                      { color: theme.colors.textPrimary },
+                    ]}
+                  >
+                    {link.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.rowBody,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {link.summary}
+                  </Text>
+                </View>
+                <Ionicons
+                  color={theme.colors.textMuted}
+                  name="chevron-forward"
+                  size={18}
+                />
+              </Pressable>
+            </Link>
+          ))}
+        </View>
       </View>
     </ScreenShell>
   );
@@ -60,5 +130,23 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.h1 },
   body: { ...typography.body },
-  link: { ...typography.bodyStrong, paddingVertical: 6 },
+  list: { gap: spacing.sm },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: 24,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  copy: { flex: 1, gap: 2 },
+  rowTitle: { ...typography.bodyStrong, fontSize: 16 },
+  rowBody: { ...typography.caption, lineHeight: 18 },
 });

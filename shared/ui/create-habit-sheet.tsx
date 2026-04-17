@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {
+  State as GestureState,
+  PanGestureHandler,
+  type PanGestureHandlerGestureEvent,
+  type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
@@ -79,6 +84,11 @@ export function CreateHabitSheet({
   const setLastArchivedItem = useUiStore((state) => state.setLastArchivedItem);
   const [draft, setDraft] = useState<HabitDraft>(createDraft);
   const translateYValue = useRef(new Animated.Value(800)).current;
+  const overlayOpacity = translateYValue.interpolate({
+    inputRange: [0, 260, 800],
+    outputRange: [1, 0.45, 0],
+    extrapolate: 'clamp',
+  });
 
   useEffect(() => {
     setGestureBlock('habit-sheet', visible);
@@ -92,12 +102,14 @@ export function CreateHabitSheet({
 
     Animated.spring(translateYValue, {
       toValue: 0,
-      bounciness: 4,
+      damping: 18,
+      stiffness: 180,
       useNativeDriver: true,
     }).start();
   }, [initialHabit, setGestureBlock, translateYValue, visible]);
 
   const closeSheet = useCallback(() => {
+    setGestureBlock('habit-sheet-drag', false);
     Animated.timing(translateYValue, {
       toValue: 800,
       duration: 180,
@@ -106,34 +118,51 @@ export function CreateHabitSheet({
     }).start(() => {
       onClose();
     });
-  }, [onClose, translateYValue]);
+  }, [onClose, setGestureBlock, translateYValue]);
 
   const resetSheetPosition = useCallback(() => {
     Animated.spring(translateYValue, {
       toValue: 0,
+      damping: 18,
+      stiffness: 180,
       useNativeDriver: true,
-      bounciness: 6,
     }).start();
   }, [translateYValue]);
 
-  const sheetPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gs) =>
-          Math.abs(gs.dy) > Math.abs(gs.dx) && gs.dy > 8,
-        onPanResponderMove: (_, gs) => {
-          translateYValue.setValue(Math.max(0, gs.dy));
-        },
-        onPanResponderRelease: (_, gs) => {
-          if (gs.dy > 110 || gs.vy > 1.2) {
-            closeSheet();
-            return;
-          }
-          resetSheetPosition();
-        },
-        onPanResponderTerminate: resetSheetPosition,
-      }),
-    [closeSheet, resetSheetPosition, translateYValue],
+  const handleSheetGestureEvent = useCallback(
+    ({ nativeEvent }: PanGestureHandlerGestureEvent) => {
+      translateYValue.setValue(Math.max(0, nativeEvent.translationY));
+    },
+    [translateYValue],
+  );
+
+  const handleSheetStateChange = useCallback(
+    ({ nativeEvent }: PanGestureHandlerStateChangeEvent) => {
+      if (nativeEvent.state === GestureState.ACTIVE) {
+        setGestureBlock('habit-sheet-drag', true);
+        return;
+      }
+
+      if (nativeEvent.oldState === GestureState.ACTIVE) {
+        setGestureBlock('habit-sheet-drag', false);
+        if (nativeEvent.translationY > 118 || nativeEvent.velocityY > 900) {
+          closeSheet();
+          return;
+        }
+
+        resetSheetPosition();
+        return;
+      }
+
+      if (
+        nativeEvent.state === GestureState.CANCELLED ||
+        nativeEvent.state === GestureState.END ||
+        nativeEvent.state === GestureState.FAILED
+      ) {
+        setGestureBlock('habit-sheet-drag', false);
+      }
+    },
+    [closeSheet, resetSheetPosition, setGestureBlock],
   );
 
   const handleSave = () => {
@@ -168,304 +197,325 @@ export function CreateHabitSheet({
   return (
     <Modal
       animationType="none"
+      onRequestClose={closeSheet}
       transparent
       visible={visible}
-      onRequestClose={closeSheet}
     >
-      <View style={[styles.overlay, { backgroundColor: theme.colors.overlay }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
+      <View style={styles.overlay}>
         <Animated.View
           style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.colors.surfaceFloating,
-              transform: [{ translateY: translateYValue }],
-            },
+            StyleSheet.absoluteFill,
+            { backgroundColor: theme.colors.overlay, opacity: overlayOpacity },
           ]}
+        />
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
+        <PanGestureHandler
+          activeOffsetY={12}
+          failOffsetX={[-12, 12]}
+          onGestureEvent={handleSheetGestureEvent}
+          onHandlerStateChange={handleSheetStateChange}
         >
-          <View {...sheetPanResponder.panHandlers} style={styles.dragArea}>
-            <View
-              style={[
-                styles.dragHandle,
-                { backgroundColor: theme.colors.divider },
-              ]}
-            />
-          </View>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            {initialHabit ? 'Edit habit' : 'Create habit'}
-          </Text>
-          <TextInput
-            onChangeText={(value) =>
-              setDraft((current) => ({ ...current, name: value }))
-            }
-            placeholder="Habit name"
-            placeholderTextColor={theme.colors.textMuted}
+          <Animated.View
             style={[
-              styles.input,
+              styles.sheet,
               {
-                backgroundColor: theme.colors.input,
-                color: theme.colors.textPrimary,
+                backgroundColor: theme.colors.surfaceFloating,
+                transform: [{ translateY: translateYValue }],
               },
             ]}
-            value={draft.name}
-          />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.optionsRow}>
-              {habitIcons.map((icon) => (
-                <Pressable
-                  key={icon}
-                  onPress={() => setDraft((current) => ({ ...current, icon }))}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    {
-                      backgroundColor:
-                        draft.icon === icon
-                          ? theme.colors.brand
-                          : theme.colors.surfaceMuted,
-                    },
-                    pressed && styles.chipPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.chipLabel,
-                      {
-                        color:
-                          draft.icon === icon
-                            ? theme.colors.surface
-                            : theme.colors.textPrimary,
-                      },
-                    ]}
-                  >
-                    {icon}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.optionsRow}>
-              {habitColors.map((color) => (
-                <Pressable
-                  key={color}
-                  onPress={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      accentColor: color,
-                    }))
-                  }
-                  style={({ pressed }) => [
-                    styles.swatch,
-                    { backgroundColor: color },
-                    draft.accentColor === color && {
-                      borderWidth: 3,
-                      borderColor: theme.colors.brandStrong,
-                    },
-                    pressed && styles.chipPressed,
-                  ]}
-                />
-              ))}
-            </View>
-          </ScrollView>
-          <View style={styles.segmentRow}>
-            {(['daily', 'weekly'] as const).map((mode) => {
-              const active = draft.goalMode === mode;
-              return (
-                <Pressable
-                  key={mode}
-                  onPress={() =>
-                    setDraft((current) => ({ ...current, goalMode: mode }))
-                  }
-                  style={({ pressed }) => [
-                    styles.segment,
-                    {
-                      backgroundColor: active
-                        ? theme.colors.brand
-                        : theme.colors.surfaceMuted,
-                    },
-                    pressed && styles.chipPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentLabel,
-                      {
-                        color: active
-                          ? theme.colors.surface
-                          : theme.colors.textPrimary,
-                      },
-                    ]}
-                  >
-                    {mode}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <TextInput
-            keyboardType="number-pad"
-            onChangeText={(value) =>
-              setDraft((current) => ({ ...current, targetPerPeriod: value }))
-            }
-            placeholder="Target per period"
-            placeholderTextColor={theme.colors.textMuted}
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.input,
-                color: theme.colors.textPrimary,
-              },
-            ]}
-            value={draft.targetPerPeriod}
-          />
-          <Text
-            style={[styles.inlineLabel, { color: theme.colors.textSecondary }]}
           >
-            Schedule
-          </Text>
-          <View style={styles.optionsRow}>
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, day) => {
-              const active = draft.schedule.includes(day);
-              return (
-                <Pressable
-                  key={`${label}-${day}`}
-                  onPress={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      schedule: active
-                        ? current.schedule.filter((item) => item !== day)
-                        : [...current.schedule, day].sort(),
-                    }))
-                  }
-                  style={({ pressed }) => [
-                    styles.dayChip,
-                    {
-                      backgroundColor: active
-                        ? theme.colors.brand
-                        : theme.colors.surfaceMuted,
-                    },
-                    pressed && styles.chipPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentLabel,
-                      {
-                        color: active
-                          ? theme.colors.surface
-                          : theme.colors.textPrimary,
-                      },
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.inlineRow}>
-            <Pressable
-              onPress={() =>
-                setDraft((current) => ({
-                  ...current,
-                  reminderEnabled: !current.reminderEnabled,
-                }))
-              }
-              style={({ pressed }) => [
-                styles.segment,
-                {
-                  backgroundColor: draft.reminderEnabled
-                    ? theme.colors.brand
-                    : theme.colors.surfaceMuted,
-                },
-                pressed && styles.chipPressed,
-              ]}
-            >
-              <Text
+            <View style={styles.dragArea}>
+              <View
                 style={[
-                  styles.segmentLabel,
-                  {
-                    color: draft.reminderEnabled
-                      ? theme.colors.surface
-                      : theme.colors.textPrimary,
-                  },
+                  styles.dragHandle,
+                  { backgroundColor: theme.colors.divider },
                 ]}
-              >
-                Reminder
-              </Text>
-            </Pressable>
+              />
+            </View>
+            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+              {initialHabit ? 'Edit habit' : 'Create habit'}
+            </Text>
             <TextInput
               onChangeText={(value) =>
-                setDraft((current) => ({ ...current, reminderTime: value }))
+                setDraft((current) => ({ ...current, name: value }))
               }
-              placeholder="20:00"
+              placeholder="Habit name"
               placeholderTextColor={theme.colors.textMuted}
               style={[
                 styles.input,
-                styles.inlineInput,
                 {
                   backgroundColor: theme.colors.input,
                   color: theme.colors.textPrimary,
                 },
               ]}
-              value={draft.reminderTime}
+              value={draft.name}
             />
-          </View>
-          <View style={styles.actions}>
-            {initialHabit ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.optionsRow}>
+                {habitIcons.map((icon) => (
+                  <Pressable
+                    key={icon}
+                    onPress={() =>
+                      setDraft((current) => ({ ...current, icon }))
+                    }
+                    style={({ pressed }) => [
+                      styles.chip,
+                      {
+                        backgroundColor:
+                          draft.icon === icon
+                            ? theme.colors.brand
+                            : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.chipPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipLabel,
+                        {
+                          color:
+                            draft.icon === icon
+                              ? theme.colors.textOnTint
+                              : theme.colors.textPrimary,
+                        },
+                      ]}
+                    >
+                      {icon}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.optionsRow}>
+                {habitColors.map((color) => (
+                  <Pressable
+                    key={color}
+                    onPress={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        accentColor: color,
+                      }))
+                    }
+                    style={({ pressed }) => [
+                      styles.swatch,
+                      { backgroundColor: color },
+                      draft.accentColor === color && {
+                        borderWidth: 3,
+                        borderColor: theme.colors.brandStrong,
+                      },
+                      pressed && styles.chipPressed,
+                    ]}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+            <View style={styles.segmentRow}>
+              {(['daily', 'weekly'] as const).map((mode) => {
+                const active = draft.goalMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    onPress={() =>
+                      setDraft((current) => ({ ...current, goalMode: mode }))
+                    }
+                    style={({ pressed }) => [
+                      styles.segment,
+                      {
+                        backgroundColor: active
+                          ? theme.colors.brand
+                          : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.chipPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentLabel,
+                        {
+                          color: active
+                            ? theme.colors.textOnTint
+                            : theme.colors.textPrimary,
+                        },
+                      ]}
+                    >
+                      {mode}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <TextInput
+              keyboardType="number-pad"
+              onChangeText={(value) =>
+                setDraft((current) => ({ ...current, targetPerPeriod: value }))
+              }
+              placeholder="Target per period"
+              placeholderTextColor={theme.colors.textMuted}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
+              value={draft.targetPerPeriod}
+            />
+            <Text
+              style={[
+                styles.inlineLabel,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Schedule
+            </Text>
+            <View style={styles.optionsRow}>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, day) => {
+                const active = draft.schedule.includes(day);
+                return (
+                  <Pressable
+                    key={`${label}-${day}`}
+                    onPress={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        schedule: active
+                          ? current.schedule.filter((item) => item !== day)
+                          : [...current.schedule, day].sort(),
+                      }))
+                    }
+                    style={({ pressed }) => [
+                      styles.dayChip,
+                      {
+                        backgroundColor: active
+                          ? theme.colors.brand
+                          : theme.colors.surfaceMuted,
+                      },
+                      pressed && styles.chipPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentLabel,
+                        {
+                          color: active
+                            ? theme.colors.textOnTint
+                            : theme.colors.textPrimary,
+                        },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.inlineRow}>
               <Pressable
-                onPress={() => {
-                  archiveHabit(initialHabit.id);
-                  setLastArchivedItem({
-                    id: initialHabit.id,
-                    kind: 'habit',
-                    title: initialHabit.name,
-                  });
-                  closeSheet();
-                }}
-                style={[
-                  styles.btn,
-                  { backgroundColor: theme.colors.accentRedSoft },
+                onPress={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    reminderEnabled: !current.reminderEnabled,
+                  }))
+                }
+                style={({ pressed }) => [
+                  styles.segment,
+                  {
+                    backgroundColor: draft.reminderEnabled
+                      ? theme.colors.brand
+                      : theme.colors.surfaceMuted,
+                  },
+                  pressed && styles.chipPressed,
                 ]}
               >
                 <Text
                   style={[
-                    styles.archiveLabel,
-                    { color: theme.colors.accentRed },
+                    styles.segmentLabel,
+                    {
+                      color: draft.reminderEnabled
+                        ? theme.colors.textOnTint
+                        : theme.colors.textPrimary,
+                    },
                   ]}
                 >
-                  Archive
+                  Reminder
                 </Text>
               </Pressable>
-            ) : null}
-            <Pressable
-              onPress={closeSheet}
-              style={[
-                styles.btn,
-                { backgroundColor: theme.colors.surfaceMuted },
-              ]}
-            >
-              <Text
+              <TextInput
+                onChangeText={(value) =>
+                  setDraft((current) => ({ ...current, reminderTime: value }))
+                }
+                placeholder="20:00"
+                placeholderTextColor={theme.colors.textMuted}
                 style={[
-                  styles.actionLabel,
-                  { color: theme.colors.textPrimary },
+                  styles.input,
+                  styles.inlineInput,
+                  {
+                    backgroundColor: theme.colors.input,
+                    color: theme.colors.textPrimary,
+                  },
+                ]}
+                value={draft.reminderTime}
+              />
+            </View>
+            <View style={styles.actions}>
+              {initialHabit ? (
+                <Pressable
+                  onPress={() => {
+                    archiveHabit(initialHabit.id);
+                    setLastArchivedItem({
+                      id: initialHabit.id,
+                      kind: 'habit',
+                      title: initialHabit.name,
+                    });
+                    closeSheet();
+                  }}
+                  style={[
+                    styles.btn,
+                    { backgroundColor: theme.colors.accentRedSoft },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.archiveLabel,
+                      { color: theme.colors.accentRed },
+                    ]}
+                  >
+                    Archive
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={closeSheet}
+                style={[
+                  styles.btn,
+                  { backgroundColor: theme.colors.surfaceMuted },
                 ]}
               >
-                Close
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={handleSave}
-              style={[styles.btn, { backgroundColor: theme.colors.brand }]}
-            >
-              <Text
-                style={[styles.actionLabel, { color: theme.colors.surface }]}
+                <Text
+                  style={[
+                    styles.actionLabel,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Close
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSave}
+                style={[styles.btn, { backgroundColor: theme.colors.brand }]}
               >
-                {initialHabit ? 'Save' : 'Create'}
-              </Text>
-            </Pressable>
-          </View>
-        </Animated.View>
+                <Text
+                  style={[
+                    styles.actionLabel,
+                    { color: theme.colors.textOnTint },
+                  ]}
+                >
+                  {initialHabit ? 'Save' : 'Create'}
+                </Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
       </View>
     </Modal>
   );

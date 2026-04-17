@@ -331,6 +331,7 @@ export default function TabsLayout() {
   const [tourVisible, setTourVisible] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const tabBarGestureRef = useRef<PanGestureHandler | null>(null);
+  const ignoreGlobalSwipeRef = useRef(false);
 
   useEffect(() => {
     if (isReady && hasCompletedOnboarding && !hasSeenAppTour) {
@@ -342,9 +343,13 @@ export default function TabsLayout() {
     nativeEvent,
   }: PanGestureHandlerStateChangeEvent) => {
     if (nativeEvent.state === GestureState.ACTIVE) {
-      if (!useUiStore.getState().isNavigationGestureBlocked) {
-        setGestureBlock('global-tab-swipe', true);
+      if (useUiStore.getState().isNavigationGestureBlocked) {
+        ignoreGlobalSwipeRef.current = true;
+        return;
       }
+
+      ignoreGlobalSwipeRef.current = false;
+      setGestureBlock('global-tab-swipe', true);
       return;
     }
 
@@ -354,16 +359,22 @@ export default function TabsLayout() {
 
     setGestureBlock('global-tab-swipe', false);
 
-    if (useUiStore.getState().isNavigationGestureBlocked) {
+    if (
+      ignoreGlobalSwipeRef.current ||
+      useUiStore.getState().isNavigationGestureBlocked
+    ) {
+      ignoreGlobalSwipeRef.current = false;
       return;
     }
 
+    ignoreGlobalSwipeRef.current = false;
+
     const horizontalIntent =
       Math.abs(nativeEvent.translationX) >
-      Math.abs(nativeEvent.translationY) * 1.25;
+      Math.abs(nativeEvent.translationY) * 1.4;
     const strongEnough =
-      Math.abs(nativeEvent.translationX) > 72 ||
-      Math.abs(nativeEvent.velocityX) > 580;
+      Math.abs(nativeEvent.translationX) > 104 ||
+      Math.abs(nativeEvent.velocityX) > 780;
 
     if (!horizontalIntent || !strongEnough) {
       return;
@@ -387,9 +398,9 @@ export default function TabsLayout() {
       style={[styles.layout, { backgroundColor: theme.colors.backgroundTop }]}
     >
       <PanGestureHandler
-        activeOffsetX={[-26, 26]}
+        activeOffsetX={[-34, 34]}
         enabled={!isNavigationGestureBlocked}
-        failOffsetY={[-16, 16]}
+        failOffsetY={[-18, 18]}
         onHandlerStateChange={handleGlobalSwipeStateChange}
         waitFor={tabBarGestureRef}
       >

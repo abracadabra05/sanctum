@@ -1,0 +1,384 @@
+import { BlurView } from 'expo-blur';
+import { useEffect, useRef } from 'react';
+import {
+  Animated,
+  Easing,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+
+import { useUiStore } from '@/shared/store/ui-store';
+import { radii, spacing, typography, useTheme } from '@/shared/theme';
+import type { TaskListItemViewModel } from '@/shared/types/app';
+
+interface TaskSearchOverlayProps {
+  visible: boolean;
+  query: string;
+  results: TaskListItemViewModel[];
+  onChangeQuery: (value: string) => void;
+  onClose: () => void;
+  onSelect?: (item: TaskListItemViewModel) => void;
+}
+
+export function TaskSearchOverlay({
+  visible,
+  query,
+  results,
+  onChangeQuery,
+  onClose,
+  onSelect,
+}: TaskSearchOverlayProps) {
+  const theme = useTheme();
+  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
+  const scale = useRef(new Animated.Value(0.98)).current;
+
+  useEffect(() => {
+    setGestureBlock('task-search-overlay', visible);
+
+    if (!visible) {
+      opacity.setValue(0);
+      translateY.setValue(12);
+      scale.setValue(0.98);
+      return;
+    }
+
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [opacity, scale, setGestureBlock, translateY, visible]);
+
+  return (
+    <Modal
+      animationType="none"
+      onRequestClose={onClose}
+      transparent
+      visible={visible}
+    >
+      <View style={styles.root}>
+        <BlurView
+          intensity={theme.mode === 'dark' ? 32 : 42}
+          style={StyleSheet.absoluteFill}
+          tint={theme.mode}
+        />
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: theme.colors.overlay, opacity },
+          ]}
+        />
+        <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
+
+        <Animated.View
+          style={[
+            styles.contentWrap,
+            {
+              opacity,
+              transform: [{ translateY }, { scale }],
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <View
+            style={[
+              styles.searchCard,
+              {
+                backgroundColor: theme.colors.surfaceFloating,
+                borderColor: theme.colors.border,
+                shadowColor: theme.shadows.card.shadowColor,
+                shadowOffset: theme.shadows.card.shadowOffset,
+                shadowOpacity: theme.shadows.card.shadowOpacity,
+                shadowRadius: theme.shadows.card.shadowRadius,
+                elevation: theme.shadows.card.elevation,
+              },
+            ]}
+          >
+            <View style={styles.inputRow}>
+              <TextInput
+                autoFocus
+                onChangeText={onChangeQuery}
+                placeholder="Search tasks"
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, { color: theme.colors.textPrimary }]}
+                value={query}
+              />
+              {query ? (
+                <Pressable
+                  hitSlop={10}
+                  onPress={() => onChangeQuery('')}
+                  style={styles.trailingButton}
+                >
+                  <Text
+                    style={[
+                      styles.trailingLabel,
+                      { color: theme.colors.brand },
+                    ]}
+                  >
+                    Clear
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                hitSlop={10}
+                onPress={onClose}
+                style={styles.trailingButton}
+              >
+                <Text
+                  style={[
+                    styles.trailingLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Close
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.resultsCard,
+              {
+                backgroundColor: theme.colors.surfaceFloating,
+                borderColor: theme.colors.border,
+                shadowColor: theme.shadows.card.shadowColor,
+                shadowOffset: theme.shadows.card.shadowOffset,
+                shadowOpacity: theme.shadows.card.shadowOpacity,
+                shadowRadius: theme.shadows.card.shadowRadius,
+                elevation: theme.shadows.card.elevation,
+              },
+            ]}
+          >
+            <View style={styles.resultsHeader}>
+              <Text
+                style={[
+                  styles.resultsTitle,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Search
+              </Text>
+              <Text
+                style={[
+                  styles.resultsMeta,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {query.trim()
+                  ? `${results.length} result${results.length === 1 ? '' : 's'}`
+                  : 'Current task list'}
+              </Text>
+            </View>
+
+            {query.trim() ? (
+              results.length ? (
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.resultsList}>
+                    {results.map((item) => (
+                      <Pressable
+                        key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
+                        onPress={() => onSelect?.(item)}
+                        style={({ pressed }) => [
+                          styles.resultRow,
+                          {
+                            backgroundColor: theme.colors.surfaceMuted,
+                            borderColor: theme.colors.divider,
+                          },
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <View style={styles.resultBody}>
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.resultTitle,
+                              { color: theme.colors.textPrimary },
+                            ]}
+                          >
+                            {item.task.title}
+                          </Text>
+                          <Text
+                            numberOfLines={2}
+                            style={[
+                              styles.resultSubtitle,
+                              { color: theme.colors.textSecondary },
+                            ]}
+                          >
+                            {item.category.label} •{' '}
+                            {item.occurrence.displayTime} • {item.task.priority}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              ) : (
+                <View
+                  style={[
+                    styles.emptyState,
+                    { backgroundColor: theme.colors.surfaceMuted },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.emptyTitle,
+                      { color: theme.colors.textPrimary },
+                    ]}
+                  >
+                    Nothing found
+                  </Text>
+                  <Text
+                    style={[
+                      styles.emptyDescription,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    Try a different task name, category, note or priority.
+                  </Text>
+                </View>
+              )
+            ) : (
+              <View
+                style={[
+                  styles.emptyState,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.emptyTitle,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Start typing
+                </Text>
+                <Text
+                  style={[
+                    styles.emptyDescription,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Search runs against the tasks visible in the current filter.
+                </Text>
+              </View>
+            )}
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  contentWrap: {
+    gap: spacing.md,
+  },
+  searchCard: {
+    borderRadius: radii.card,
+    borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  input: {
+    flex: 1,
+    ...typography.bodyStrong,
+  },
+  trailingButton: {
+    paddingVertical: spacing.xs,
+  },
+  trailingLabel: {
+    ...typography.caption,
+    fontSize: 14,
+  },
+  resultsCard: {
+    maxHeight: 320,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  resultsTitle: {
+    ...typography.bodyStrong,
+  },
+  resultsMeta: {
+    ...typography.caption,
+  },
+  resultsList: {
+    gap: spacing.sm,
+  },
+  resultRow: {
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  resultBody: {
+    gap: 4,
+  },
+  resultTitle: {
+    ...typography.bodyStrong,
+  },
+  resultSubtitle: {
+    ...typography.caption,
+  },
+  emptyState: {
+    borderRadius: 22,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    gap: spacing.xs,
+  },
+  emptyTitle: {
+    ...typography.bodyStrong,
+  },
+  emptyDescription: {
+    ...typography.body,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  pressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
+  },
+});

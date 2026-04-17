@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
+
+const targetPresets = [1800, 2200, 2500, 3000];
+const quickPresets = [150, 250, 350, 500];
+
+const buildQuickDraft = (amounts: number[]) =>
+  Array.from({ length: 4 }, (_, index) => String(amounts[index] ?? ''));
 
 export default function WaterSettingsScreen() {
   const theme = useTheme();
@@ -13,7 +19,33 @@ export default function WaterSettingsScreen() {
     (state) => state.setQuickWaterAmounts,
   );
   const [target, setTarget] = useState(String(preferences.dailyWaterTargetMl));
-  const [quick, setQuick] = useState(preferences.quickWaterAmounts.join(','));
+  const [quickDraft, setQuickDraft] = useState(() =>
+    buildQuickDraft(preferences.quickWaterAmounts),
+  );
+
+  const parsedQuickAmounts = useMemo(
+    () =>
+      quickDraft
+        .map((item) => Number(item))
+        .filter((item) => !Number.isNaN(item) && item > 0),
+    [quickDraft],
+  );
+
+  const setQuickValue = (index: number, value: string) => {
+    setQuickDraft((current) =>
+      current.map((item, currentIndex) =>
+        currentIndex === index ? value.replace(/[^0-9]/g, '') : item,
+      ),
+    );
+  };
+
+  const bumpTarget = (delta: number) => {
+    const next = Math.max(
+      250,
+      (Number(target) || preferences.dailyWaterTargetMl) + delta,
+    );
+    setTarget(String(next));
+  };
 
   return (
     <ScreenShell>
@@ -33,46 +65,173 @@ export default function WaterSettingsScreen() {
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
           Water
         </Text>
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-          Daily target
+        <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
+          Set a daily goal and the quick amounts used on the dashboard.
         </Text>
-        <TextInput
-          keyboardType="number-pad"
-          onChangeText={setTarget}
+
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+            Daily target
+          </Text>
+          <View style={styles.targetRow}>
+            <Pressable
+              onPress={() => bumpTarget(-100)}
+              style={[
+                styles.stepButton,
+                { backgroundColor: theme.colors.surfaceMuted },
+              ]}
+            >
+              <Text
+                style={[styles.stepLabel, { color: theme.colors.textPrimary }]}
+              >
+                -100
+              </Text>
+            </Pressable>
+            <TextInput
+              keyboardType="number-pad"
+              onChangeText={(value) => setTarget(value.replace(/[^0-9]/g, ''))}
+              style={[
+                styles.targetInput,
+                {
+                  backgroundColor: theme.colors.input,
+                  color: theme.colors.textPrimary,
+                },
+              ]}
+              value={target}
+            />
+            <Pressable
+              onPress={() => bumpTarget(100)}
+              style={[
+                styles.stepButton,
+                { backgroundColor: theme.colors.surfaceMuted },
+              ]}
+            >
+              <Text
+                style={[styles.stepLabel, { color: theme.colors.textPrimary }]}
+              >
+                +100
+              </Text>
+            </Pressable>
+          </View>
+          <View style={styles.presetRow}>
+            {targetPresets.map((preset) => {
+              const active = Number(target) === preset;
+              return (
+                <Pressable
+                  key={preset}
+                  onPress={() => setTarget(String(preset))}
+                  style={({ pressed }) => [
+                    styles.presetChip,
+                    {
+                      backgroundColor: active
+                        ? theme.colors.brand
+                        : theme.colors.surfaceMuted,
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.presetLabel,
+                      {
+                        color: active
+                          ? theme.colors.textOnTint
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {preset} ml
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+            Quick buttons
+          </Text>
+          <View style={styles.quickGrid}>
+            {quickDraft.map((value, index) => (
+              <View
+                key={`quick-${index}`}
+                style={[
+                  styles.quickSlot,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.quickSlotLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Quick {index + 1}
+                </Text>
+                <TextInput
+                  keyboardType="number-pad"
+                  onChangeText={(nextValue) => setQuickValue(index, nextValue)}
+                  placeholder={`${quickPresets[index]}`}
+                  placeholderTextColor={theme.colors.textMuted}
+                  style={[
+                    styles.quickInput,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                  value={value}
+                />
+              </View>
+            ))}
+          </View>
+          <View style={styles.presetRow}>
+            {quickPresets.map((preset, index) => (
+              <Pressable
+                key={`quick-preset-${preset}`}
+                onPress={() => setQuickValue(index, String(preset))}
+                style={({ pressed }) => [
+                  styles.presetChip,
+                  { backgroundColor: theme.colors.surfaceMuted },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.presetLabel,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Slot {index + 1}: {preset}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View
           style={[
-            styles.input,
-            {
-              backgroundColor: theme.colors.input,
-              color: theme.colors.textPrimary,
-            },
+            styles.summaryBox,
+            { backgroundColor: theme.colors.surfaceMuted },
           ]}
-          value={target}
-        />
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-          Quick amounts
-        </Text>
-        <TextInput
-          onChangeText={setQuick}
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.colors.input,
-              color: theme.colors.textPrimary,
-            },
-          ]}
-          value={quick}
-        />
+        >
+          <Text
+            style={[styles.summaryTitle, { color: theme.colors.textPrimary }]}
+          >
+            Preview
+          </Text>
+          <Text
+            style={[styles.summaryBody, { color: theme.colors.textSecondary }]}
+          >
+            Goal {Number(target) || preferences.dailyWaterTargetMl} ml • Quick
+            buttons {parsedQuickAmounts.join(', ') || 'not set'}
+          </Text>
+        </View>
+
         <Pressable
           onPress={() => {
             setDailyWaterTarget(
               Number(target) || preferences.dailyWaterTargetMl,
             );
-            setQuickWaterAmounts(
-              quick
-                .split(',')
-                .map((item) => Number(item.trim()))
-                .filter((item) => !Number.isNaN(item) && item > 0),
-            );
+            setQuickWaterAmounts(parsedQuickAmounts);
           }}
           style={[
             styles.button,
@@ -86,7 +245,9 @@ export default function WaterSettingsScreen() {
             },
           ]}
         >
-          <Text style={[styles.buttonLabel, { color: theme.colors.surface }]}>
+          <Text
+            style={[styles.buttonLabel, { color: theme.colors.textOnTint }]}
+          >
             Save water settings
           </Text>
         </Pressable>
@@ -98,21 +259,76 @@ export default function WaterSettingsScreen() {
 const styles = StyleSheet.create({
   card: {
     marginTop: spacing.xl,
-    gap: spacing.md,
+    gap: spacing.lg,
     borderRadius: radii.card,
     padding: spacing.xl,
   },
   title: { ...typography.h1 },
+  body: { ...typography.body },
+  section: { gap: spacing.sm },
   label: {
     ...typography.caption,
     textTransform: 'uppercase',
   },
-  input: {
+  targetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  stepButton: {
+    minWidth: 72,
+    minHeight: 52,
+    borderRadius: radii.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  stepLabel: { ...typography.bodyStrong, fontSize: 15 },
+  targetInput: {
+    flex: 1,
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
+    textAlign: 'center',
   },
+  presetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  presetChip: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  presetLabel: { ...typography.caption, fontSize: 14 },
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  quickSlot: {
+    width: '47%',
+    borderRadius: 22,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: 6,
+  },
+  quickSlotLabel: { ...typography.caption },
+  quickInput: {
+    ...typography.bodyStrong,
+    fontSize: 18,
+    paddingVertical: 0,
+  },
+  summaryBox: {
+    borderRadius: 22,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: 4,
+  },
+  summaryTitle: { ...typography.bodyStrong, fontSize: 15 },
+  summaryBody: { ...typography.caption, lineHeight: 18 },
   button: {
     minHeight: 54,
     borderRadius: radii.button,
@@ -120,4 +336,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonLabel: { ...typography.bodyStrong },
+  pressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
+  },
 });

@@ -1,23 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Animated,
-  Easing,
   LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   UIManager,
   View,
 } from 'react-native';
 
 import {
   buildTaskSections,
-  filterTaskListByQuery,
   getTaskCompletionRecord,
 } from '@/features/tasks/selectors';
 import { toDateKey } from '@/shared/lib/date';
@@ -32,6 +28,7 @@ import type { RadialFabItem } from '@/shared/ui/radial-fab';
 import { RadialFab } from '@/shared/ui/radial-fab';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 import { TaskCard } from '@/shared/ui/task-card';
+import { TaskSearchOverlay } from '@/shared/ui/task-search-overlay';
 
 if (
   Platform.OS === 'android' &&
@@ -40,39 +37,8 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-function TasksHeader({
-  searchOpen,
-  onOpenSearch,
-  onCloseSearch,
-  query,
-  onChangeQuery,
-}: {
-  searchOpen: boolean;
-  onOpenSearch: () => void;
-  onCloseSearch: () => void;
-  query: string;
-  onChangeQuery: (value: string) => void;
-}) {
+function TasksHeader({ onOpenSearch }: { onOpenSearch: () => void }) {
   const theme = useTheme();
-  const searchOpacity = useRef(new Animated.Value(0)).current;
-  const searchTranslate = useRef(new Animated.Value(-8)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(searchOpacity, {
-        toValue: searchOpen ? 1 : 0,
-        duration: searchOpen ? 220 : 160,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(searchTranslate, {
-        toValue: searchOpen ? 0 : -8,
-        duration: searchOpen ? 220 : 160,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [searchOpacity, searchOpen, searchTranslate]);
 
   return (
     <View style={styles.headerWrap}>
@@ -80,53 +46,10 @@ function TasksHeader({
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
           Tasks
         </Text>
-        <Pressable
-          onPress={searchOpen ? onCloseSearch : onOpenSearch}
-          style={styles.headerIconButton}
-        >
-          <Ionicons
-            color={theme.colors.iconNeutral}
-            name={searchOpen ? 'close' : 'search'}
-            size={24}
-          />
+        <Pressable onPress={onOpenSearch} style={styles.headerIconButton}>
+          <Ionicons color={theme.colors.iconNeutral} name="search" size={24} />
         </Pressable>
       </View>
-      {searchOpen ? (
-        <Animated.View
-          style={[
-            styles.searchBar,
-            {
-              backgroundColor: theme.colors.surfaceFloating,
-              borderColor: theme.colors.border,
-              opacity: searchOpacity,
-              transform: [{ translateY: searchTranslate }],
-            },
-          ]}
-        >
-          <Ionicons
-            color={theme.colors.textSecondary}
-            name="search"
-            size={18}
-          />
-          <TextInput
-            autoFocus
-            onChangeText={onChangeQuery}
-            placeholder="Search by title, notes, category, priority..."
-            placeholderTextColor={theme.colors.textMuted}
-            style={[styles.searchInput, { color: theme.colors.textPrimary }]}
-            value={query}
-          />
-          {query ? (
-            <Pressable onPress={() => onChangeQuery('')}>
-              <Ionicons
-                color={theme.colors.textMuted}
-                name="close-circle"
-                size={18}
-              />
-            </Pressable>
-          ) : null}
-        </Animated.View>
-      ) : null}
     </View>
   );
 }
@@ -177,7 +100,6 @@ export default function TasksScreen() {
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   useEffect(() => {
     if (!isReady) {
@@ -190,13 +112,8 @@ export default function TasksScreen() {
   }, [rolloverDayIfNeeded]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 180);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  useEffect(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }, [debouncedQuery, filter, searchOpen]);
+  }, [filter]);
 
   const categories = useMemo(
     () => taskCategories.filter((item) => !item.archived),
@@ -267,22 +184,22 @@ export default function TasksScreen() {
     [categories, tasks],
   );
 
-  const searchedSections = useMemo(
-    () => filterTaskListByQuery(sections, debouncedQuery),
-    [debouncedQuery, sections],
-  );
-
-  const searchResults = useMemo(
+  const overlayDataset = useMemo(
     () =>
       filter === 'archived'
-        ? archivedItems.filter((item) =>
-            debouncedQuery
-              ? item.searchText?.includes(debouncedQuery.toLowerCase())
-              : true,
-          )
-        : searchedSections.flatMap((section) => section.tasks),
-    [archivedItems, debouncedQuery, filter, searchedSections],
+        ? archivedItems
+        : sections.flatMap((section) => section.tasks),
+    [archivedItems, filter, sections],
   );
+
+  const overlayResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return overlayDataset;
+    }
+
+    return overlayDataset.filter((item) => item.searchText?.includes(query));
+  }, [overlayDataset, searchQuery]);
 
   const focusCompletion = useMemo(() => {
     const todayTasks = tasks.filter((task) => !task.archived);
@@ -298,7 +215,6 @@ export default function TasksScreen() {
     return Math.round((completedCount / todayTasks.length) * 100);
   }, [taskCompletions, tasks]);
 
-  const showFlatResults = Boolean(debouncedQuery);
   const archiveMode = filter === 'archived';
 
   const handleArchiveTask = useCallback(
@@ -318,21 +234,15 @@ export default function TasksScreen() {
     [archiveTask, setLastArchivedItem, tasks],
   );
 
+  const closeSearchOverlay = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery('');
+  }, []);
+
   return (
     <>
       <ScreenShell
-        header={
-          <TasksHeader
-            searchOpen={searchOpen}
-            onOpenSearch={() => setSearchOpen(true)}
-            onCloseSearch={() => {
-              setSearchOpen(false);
-              setSearchQuery('');
-            }}
-            query={searchQuery}
-            onChangeQuery={setSearchQuery}
-          />
-        }
+        header={<TasksHeader onOpenSearch={() => setSearchOpen(true)} />}
       >
         <View
           style={[
@@ -438,11 +348,11 @@ export default function TasksScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                {searchResults.length} items
+                {archivedItems.length} items
               </Text>
             </View>
-            {searchResults.length ? (
-              searchResults.map((item) => (
+            {archivedItems.length ? (
+              archivedItems.map((item) => (
                 <View
                   key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
                   style={[
@@ -514,62 +424,6 @@ export default function TasksScreen() {
               </View>
             )}
           </View>
-        ) : showFlatResults ? (
-          <View style={styles.sectionStack}>
-            <View style={styles.sectionHeader}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                Search results
-              </Text>
-              <Text
-                style={[
-                  styles.resultCount,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {searchResults.length} found
-              </Text>
-            </View>
-            {searchResults.length ? (
-              searchResults.map((item) => (
-                <TaskCard
-                  key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
-                  item={item}
-                  onArchive={handleArchiveTask}
-                  onEdit={openEdit}
-                  onToggle={completeTaskOccurrence}
-                />
-              ))
-            ) : (
-              <View
-                style={[
-                  styles.emptyCard,
-                  { backgroundColor: theme.colors.surfaceMuted },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.emptyTitle,
-                    { color: theme.colors.textPrimary },
-                  ]}
-                >
-                  No tasks match that search
-                </Text>
-                <Text
-                  style={[
-                    styles.emptyBody,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Try another phrase or clear the search field.
-                </Text>
-              </View>
-            )}
-          </View>
         ) : sections.length > 0 ? (
           sections.map((section) => (
             <View key={section.id} style={styles.section}>
@@ -610,6 +464,18 @@ export default function TasksScreen() {
           />
         )}
       </ScreenShell>
+
+      <TaskSearchOverlay
+        onChangeQuery={setSearchQuery}
+        onClose={closeSearchOverlay}
+        onSelect={(item) => {
+          closeSearchOverlay();
+          openEdit(item.task.id);
+        }}
+        query={searchQuery}
+        results={overlayResults}
+        visible={searchOpen}
+      />
 
       <RadialFab
         onPress={openCreate}
@@ -661,19 +527,6 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  searchInput: {
-    flex: 1,
-    ...typography.body,
   },
   focusCard: {
     alignItems: 'center',

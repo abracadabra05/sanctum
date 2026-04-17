@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -29,6 +29,30 @@ export default function CategoriesSettingsScreen() {
   const archiveTaskCategory = useAppStore((state) => state.archiveTaskCategory);
   const [label, setLabel] = useState('');
   const [color, setColor] = useState(palette[0]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const activeCategories = useMemo(
+    () => categories.filter((item) => !item.archived),
+    [categories],
+  );
+
+  const isEditing = Boolean(editingId);
+
+  const handleSave = () => {
+    if (!label.trim()) {
+      return;
+    }
+
+    if (editingId) {
+      updateTaskCategory(editingId, { label: label.trim(), color });
+    } else {
+      createTaskCategory({ label: label.trim(), color });
+    }
+
+    setLabel('');
+    setColor(palette[0]);
+    setEditingId(null);
+  };
 
   return (
     <ScreenShell>
@@ -48,9 +72,14 @@ export default function CategoriesSettingsScreen() {
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
           Task categories
         </Text>
+        <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
+          Keep your filters tidy. Presets stay locked, custom categories can be
+          edited or archived.
+        </Text>
+
         <TextInput
           onChangeText={setLabel}
-          placeholder="New category"
+          placeholder="Category name"
           placeholderTextColor={theme.colors.textMuted}
           style={[
             styles.input,
@@ -61,6 +90,7 @@ export default function CategoriesSettingsScreen() {
           ]}
           value={label}
         />
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.swatches}>
             {palette.map((item) => (
@@ -79,30 +109,53 @@ export default function CategoriesSettingsScreen() {
             ))}
           </View>
         </ScrollView>
-        <Pressable
-          onPress={() => {
-            if (label.trim()) {
-              createTaskCategory({ label: label.trim(), color });
-              setLabel('');
-            }
-          }}
-          style={[
-            styles.button,
-            {
-              backgroundColor: theme.colors.brand,
-              shadowColor: theme.shadows.button.shadowColor,
-              shadowOffset: theme.shadows.button.shadowOffset,
-              shadowOpacity: theme.shadows.button.shadowOpacity,
-              shadowRadius: theme.shadows.button.shadowRadius,
-              elevation: theme.shadows.button.elevation,
-            },
-          ]}
-        >
-          <Text style={[styles.buttonLabel, { color: theme.colors.surface }]}>
-            Create category
-          </Text>
-        </Pressable>
+
+        <View style={styles.actions}>
+          <Pressable
+            onPress={handleSave}
+            style={[
+              styles.button,
+              {
+                backgroundColor: theme.colors.brand,
+                shadowColor: theme.shadows.button.shadowColor,
+                shadowOffset: theme.shadows.button.shadowOffset,
+                shadowOpacity: theme.shadows.button.shadowOpacity,
+                shadowRadius: theme.shadows.button.shadowRadius,
+                elevation: theme.shadows.button.elevation,
+              },
+            ]}
+          >
+            <Text
+              style={[styles.buttonLabel, { color: theme.colors.textOnTint }]}
+            >
+              {isEditing ? 'Save category' : 'Create category'}
+            </Text>
+          </Pressable>
+          {isEditing ? (
+            <Pressable
+              onPress={() => {
+                setEditingId(null);
+                setLabel('');
+                setColor(palette[0]);
+              }}
+              style={[
+                styles.secondaryButton,
+                { backgroundColor: theme.colors.surfaceMuted },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.secondaryLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Cancel
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
+
       <View
         style={[
           styles.card,
@@ -116,33 +169,69 @@ export default function CategoriesSettingsScreen() {
           },
         ]}
       >
-        {categories
-          .filter((item) => !item.archived)
-          .map((category) => (
-            <View key={category.id} style={styles.row}>
-              <Text
-                style={[
-                  styles.categoryText,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                {category.label}
-              </Text>
+        <Text
+          style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
+        >
+          Active categories
+        </Text>
+        {activeCategories.map((category) => {
+          const fallbackCategory =
+            activeCategories.find(
+              (item) => item.id !== category.id && !item.archived,
+            ) ?? null;
+
+          return (
+            <View
+              key={category.id}
+              style={[
+                styles.row,
+                { backgroundColor: theme.colors.surfaceMuted },
+              ]}
+            >
+              <View style={styles.rowBody}>
+                <View
+                  style={[styles.dot, { backgroundColor: category.color }]}
+                />
+                <View style={styles.rowCopy}>
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      { color: theme.colors.textPrimary },
+                    ]}
+                  >
+                    {category.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.categoryMeta,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {category.kind === 'preset'
+                      ? 'Preset category'
+                      : fallbackCategory
+                        ? `Archive moves tasks to ${fallbackCategory.label}`
+                        : 'Custom category'}
+                  </Text>
+                </View>
+              </View>
               {category.kind === 'custom' ? (
                 <View style={styles.rowActions}>
                   <Pressable
-                    onPress={() =>
-                      updateTaskCategory(category.id, {
-                        label: `${category.label} Plus`,
-                      })
-                    }
+                    onPress={() => {
+                      setEditingId(category.id);
+                      setLabel(category.label);
+                      setColor(category.color);
+                    }}
                   >
                     <Text style={[styles.link, { color: theme.colors.brand }]}>
-                      Quick rename
+                      Edit
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => archiveTaskCategory(category.id, 'personal')}
+                    onPress={() =>
+                      archiveTaskCategory(category.id, fallbackCategory?.id)
+                    }
                   >
                     <Text
                       style={[
@@ -158,11 +247,12 @@ export default function CategoriesSettingsScreen() {
                 <Text
                   style={[styles.preset, { color: theme.colors.textSecondary }]}
                 >
-                  Preset
+                  Locked
                 </Text>
               )}
             </View>
-          ))}
+          );
+        })}
       </View>
     </ScreenShell>
   );
@@ -176,6 +266,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   title: { ...typography.h1 },
+  body: { ...typography.body },
   input: {
     borderRadius: 18,
     paddingHorizontal: 14,
@@ -184,22 +275,49 @@ const styles = StyleSheet.create({
   },
   swatches: { flexDirection: 'row', gap: spacing.sm },
   swatch: { width: 30, height: 30, borderRadius: 15 },
+  actions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
   button: {
+    flex: 1,
     minHeight: 54,
     borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  secondaryButton: {
+    minHeight: 54,
+    borderRadius: radii.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
   buttonLabel: { ...typography.bodyStrong },
+  secondaryLabel: { ...typography.bodyStrong, fontSize: 15 },
+  sectionTitle: { ...typography.h2 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: 24,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  rowBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
+  dot: { width: 12, height: 12, borderRadius: 6 },
+  rowCopy: { flex: 1, gap: 2 },
   categoryText: { ...typography.bodyStrong },
+  categoryMeta: { ...typography.caption, lineHeight: 18 },
   rowActions: { flexDirection: 'row', gap: spacing.md },
-  link: { ...typography.caption },
-  archive: { ...typography.caption },
-  preset: { ...typography.caption },
+  link: { ...typography.caption, fontSize: 14 },
+  archive: { ...typography.caption, fontSize: 14 },
+  preset: { ...typography.caption, fontSize: 14 },
 });

@@ -1,13 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useMemo, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
-  Animated,
-  PanResponder,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+  State as GestureState,
+  PanGestureHandler,
+  type PanGestureHandlerGestureEvent,
+  type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
@@ -19,6 +18,9 @@ interface TaskCardProps {
   onEdit?: (taskId: string) => void;
   onArchive?: (taskId: string) => void;
 }
+
+const MAX_SWIPE = 140;
+const ARCHIVE_THRESHOLD = 96;
 
 const getContrastText = (hex: string) => {
   const sanitized = hex.replace('#', '');
@@ -42,6 +44,9 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
   const theme = useTheme();
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const done = item.occurrence.isCompleted;
+  const cardSurfaceColor = done
+    ? theme.colors.surfaceMuted
+    : theme.colors.surface;
   const translateX = useRef(new Animated.Value(0)).current;
   const categoryTextColor = useMemo(
     () => getContrastText(item.category.color),
@@ -50,6 +55,11 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
   const priorityTextColor = theme.colors[
     `priority${item.task.priority.charAt(0).toUpperCase() + item.task.priority.slice(1)}` as keyof typeof theme.colors
   ] as string;
+
+  const clearGestureBlocks = useCallback(() => {
+    setGestureBlock('task-card-swipe-intent', false);
+    setGestureBlock('task-swipe', false);
+  }, [setGestureBlock]);
 
   const resetPosition = useCallback(() => {
     Animated.spring(translateX, {
@@ -70,147 +80,191 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
     });
   }, [item.task.id, onArchive, translateX]);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
-          gestureState.dx < -10,
-        onPanResponderGrant: () => {
-          setGestureBlock('task-swipe', true);
-        },
-        onPanResponderMove: (_, gestureState) => {
-          translateX.setValue(Math.max(gestureState.dx, -140));
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          setGestureBlock('task-swipe', false);
-          if (gestureState.dx < -96 && onArchive) {
-            archiveTask();
-            return;
-          }
-          resetPosition();
-        },
-        onPanResponderTerminate: () => {
-          setGestureBlock('task-swipe', false);
-          resetPosition();
-        },
-      }),
-    [archiveTask, onArchive, resetPosition, setGestureBlock, translateX],
-  );
+  const handleGestureEvent = ({
+    nativeEvent,
+  }: PanGestureHandlerGestureEvent) => {
+    translateX.setValue(
+      Math.max(-MAX_SWIPE, Math.min(0, nativeEvent.translationX)),
+    );
+  };
+
+  const handleStateChange = ({
+    nativeEvent,
+  }: PanGestureHandlerStateChangeEvent) => {
+    if (nativeEvent.state === GestureState.BEGAN) {
+      setGestureBlock('task-card-swipe-intent', true);
+      return;
+    }
+
+    if (nativeEvent.state === GestureState.ACTIVE) {
+      setGestureBlock('task-swipe', true);
+      return;
+    }
+
+    if (nativeEvent.oldState === GestureState.ACTIVE) {
+      setGestureBlock('task-swipe', false);
+      if (
+        nativeEvent.translationX < -ARCHIVE_THRESHOLD ||
+        nativeEvent.velocityX < -900
+      ) {
+        archiveTask();
+        setTimeout(() => {
+          setGestureBlock('task-card-swipe-intent', false);
+        }, 140);
+        return;
+      }
+
+      resetPosition();
+      setTimeout(() => {
+        setGestureBlock('task-card-swipe-intent', false);
+      }, 140);
+      return;
+    }
+
+    if (
+      nativeEvent.state === GestureState.CANCELLED ||
+      nativeEvent.state === GestureState.END ||
+      nativeEvent.state === GestureState.FAILED
+    ) {
+      clearGestureBlocks();
+      resetPosition();
+    }
+  };
 
   return (
-    <View style={styles.swipeWrap}>
-      <View
-        style={[
-          styles.archiveAction,
-          { backgroundColor: theme.colors.accentRed },
-        ]}
-      >
-        <Ionicons
-          color={theme.colors.surface}
-          name="archive-outline"
-          size={20}
-        />
-        <Text
-          style={[styles.archiveActionLabel, { color: theme.colors.surface }]}
-        >
-          Archive
-        </Text>
-      </View>
-      <Animated.View
-        style={{ transform: [{ translateX }] }}
-        {...(onArchive ? panResponder.panHandlers : {})}
-      >
-        <Pressable
-          onLongPress={() => onEdit?.(item.task.id)}
-          onPress={() => onToggle(item.task.id, item.occurrence.occurrenceDate)}
+    <View style={[styles.swipeWrap, { backgroundColor: cardSurfaceColor }]}>
+      <View style={styles.archiveLayer}>
+        <View
           style={[
-            styles.card,
-            {
-              backgroundColor: done
-                ? theme.colors.surfaceMuted
-                : theme.colors.surface,
-              shadowColor: theme.shadows.card.shadowColor,
-              shadowOffset: theme.shadows.card.shadowOffset,
-              shadowOpacity: theme.shadows.card.shadowOpacity,
-              shadowRadius: theme.shadows.card.shadowRadius,
-              elevation: theme.shadows.card.elevation,
-            },
+            styles.archiveAction,
+            { backgroundColor: theme.colors.accentRed },
           ]}
         >
-          <View style={styles.leading}>
-            <View
-              style={[
-                styles.checkbox,
-                {
-                  borderColor: done ? theme.colors.brand : theme.colors.border,
-                  backgroundColor: done
-                    ? theme.colors.brand
-                    : theme.colors.surface,
-                },
-              ]}
+          <Ionicons
+            color={theme.colors.textOnTint}
+            name="archive-outline"
+            size={20}
+          />
+          <Text
+            style={[
+              styles.archiveActionLabel,
+              { color: theme.colors.textOnTint },
+            ]}
+          >
+            Archive
+          </Text>
+        </View>
+      </View>
+
+      <PanGestureHandler
+        activeOffsetX={[-14, 14]}
+        failOffsetY={[-10, 10]}
+        onGestureEvent={handleGestureEvent}
+        onHandlerStateChange={handleStateChange}
+      >
+        <Animated.View
+          style={[styles.frontLayer, { transform: [{ translateX }] }]}
+        >
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: cardSurfaceColor,
+                shadowColor: theme.shadows.card.shadowColor,
+                shadowOffset: theme.shadows.card.shadowOffset,
+                shadowOpacity: theme.shadows.card.shadowOpacity,
+                shadowRadius: theme.shadows.card.shadowRadius,
+                elevation: theme.shadows.card.elevation,
+              },
+            ]}
+          >
+            <Pressable
+              onLongPress={() => onEdit?.(item.task.id)}
+              onPress={() =>
+                onToggle(item.task.id, item.occurrence.occurrenceDate)
+              }
+              style={styles.cardPressable}
             >
-              {done ? (
-                <Ionicons
-                  color={theme.colors.surface}
-                  name="checkmark"
-                  size={18}
-                />
-              ) : null}
-            </View>
+              <View style={styles.leading}>
+                <View
+                  style={[
+                    styles.checkbox,
+                    {
+                      borderColor: done
+                        ? theme.colors.brand
+                        : theme.colors.border,
+                      backgroundColor: done
+                        ? theme.colors.brand
+                        : theme.colors.surface,
+                    },
+                  ]}
+                >
+                  {done ? (
+                    <Ionicons
+                      color={theme.colors.textOnTint}
+                      name="checkmark"
+                      size={18}
+                    />
+                  ) : null}
+                </View>
+              </View>
+              <View style={styles.content}>
+                <Text
+                  style={[
+                    styles.title,
+                    {
+                      color: done
+                        ? theme.colors.textSecondary
+                        : theme.colors.textPrimary,
+                      textDecorationLine: done ? 'line-through' : 'none',
+                    },
+                  ]}
+                >
+                  {item.task.title}
+                </Text>
+                {item.task.notes ? (
+                  <Text
+                    style={[
+                      styles.notes,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {item.task.notes}
+                  </Text>
+                ) : null}
+                <View style={styles.metaRow}>
+                  <Text
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: item.category.color,
+                        color: categoryTextColor,
+                      },
+                    ]}
+                  >
+                    {item.category.label.toUpperCase()}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.time,
+                      {
+                        color: done
+                          ? theme.colors.textMuted
+                          : theme.colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {done ? 'Done' : item.occurrence.displayTime}
+                  </Text>
+                  <Text style={[styles.priority, { color: priorityTextColor }]}>
+                    {item.task.priority.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
           </View>
-          <View style={styles.content}>
-            <Text
-              style={[
-                styles.title,
-                {
-                  color: done
-                    ? theme.colors.textSecondary
-                    : theme.colors.textPrimary,
-                  textDecorationLine: done ? 'line-through' : 'none',
-                },
-              ]}
-            >
-              {item.task.title}
-            </Text>
-            {item.task.notes ? (
-              <Text
-                style={[styles.notes, { color: theme.colors.textSecondary }]}
-              >
-                {item.task.notes}
-              </Text>
-            ) : null}
-            <View style={styles.metaRow}>
-              <Text
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: item.category.color,
-                    color: categoryTextColor,
-                  },
-                ]}
-              >
-                {item.category.label.toUpperCase()}
-              </Text>
-              <Text
-                style={[
-                  styles.time,
-                  {
-                    color: done
-                      ? theme.colors.textMuted
-                      : theme.colors.textSecondary,
-                  },
-                ]}
-              >
-                {done ? 'Done' : item.occurrence.displayTime}
-              </Text>
-              <Text style={[styles.priority, { color: priorityTextColor }]}>
-                {item.task.priority.toUpperCase()}
-              </Text>
-            </View>
-          </View>
-        </Pressable>
-      </Animated.View>
+        </Animated.View>
+      </PanGestureHandler>
     </View>
   );
 }
@@ -221,9 +275,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radii.card,
   },
-  archiveAction: {
+  archiveLayer: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: radii.card,
+    padding: 2,
+  },
+  archiveAction: {
+    flex: 1,
+    borderRadius: radii.card - 2,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
@@ -233,7 +291,13 @@ const styles = StyleSheet.create({
   archiveActionLabel: {
     ...typography.bodyStrong,
   },
+  frontLayer: {
+    borderRadius: radii.card,
+  },
   card: {
+    borderRadius: radii.card,
+  },
+  cardPressable: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,

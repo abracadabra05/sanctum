@@ -11,6 +11,8 @@ import {
 } from 'react';
 import {
   Animated,
+  Dimensions,
+  Easing,
   LayoutChangeEvent,
   Pressable,
   StyleSheet,
@@ -39,6 +41,7 @@ const labelMap = {
 };
 
 const tabPaths = ['/', '/tasks', '/habits', '/profile'] as const;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -416,6 +419,32 @@ export default function TabsLayout() {
             }}
             screenOptions={{
               headerShown: false,
+              animation: 'none',
+              transitionSpec: {
+                animation: 'timing',
+                config: {
+                  duration: 240,
+                  easing: Easing.out(Easing.cubic),
+                },
+              },
+              sceneStyleInterpolator: ({ current }) => ({
+                sceneStyle: {
+                  opacity: current.progress.interpolate({
+                    inputRange: [-1, -0.18, 0, 0.18, 1],
+                    outputRange: [0.9, 0.98, 1, 0.98, 0.9],
+                    extrapolate: 'clamp',
+                  }),
+                  transform: [
+                    {
+                      translateX: current.progress.interpolate({
+                        inputRange: [-1, 0, 1],
+                        outputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
+                        extrapolate: 'clamp',
+                      }),
+                    },
+                  ],
+                },
+              }),
               sceneStyle: { backgroundColor: theme.colors.backgroundTop },
             }}
             tabBar={(props) => (

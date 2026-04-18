@@ -365,11 +365,6 @@ export default function TasksScreen() {
               styles.filterTrack,
               {
                 backgroundColor: theme.colors.surfaceFloating,
-                shadowColor: theme.shadows.card.shadowColor,
-                shadowOffset: theme.shadows.card.shadowOffset,
-                shadowOpacity: theme.shadows.card.shadowOpacity,
-                shadowRadius: theme.shadows.card.shadowRadius,
-                elevation: theme.shadows.card.elevation,
               },
             ]}
           >
@@ -652,11 +647,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     borderRadius: radii.pill,
-    padding: 4,
+    overflow: 'hidden',
+    paddingVertical: 4,
   },
   filterPill: {
     position: 'absolute',
-    left: 4,
+    left: 0,
     top: 4,
     bottom: 4,
     borderRadius: radii.pill,

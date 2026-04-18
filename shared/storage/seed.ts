@@ -16,6 +16,7 @@ export const PRESET_TASK_CATEGORIES: TaskCategoryEntity[] = [
     color: '#E5EAF1',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
   {
     id: 'personal',
@@ -23,6 +24,7 @@ export const PRESET_TASK_CATEGORIES: TaskCategoryEntity[] = [
     color: '#E9EDF3',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
   {
     id: 'health',
@@ -30,6 +32,7 @@ export const PRESET_TASK_CATEGORIES: TaskCategoryEntity[] = [
     color: '#F7DCE9',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
   {
     id: 'study',
@@ -37,6 +40,7 @@ export const PRESET_TASK_CATEGORIES: TaskCategoryEntity[] = [
     color: '#E7F3DE',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
   {
     id: 'home',
@@ -44,6 +48,7 @@ export const PRESET_TASK_CATEGORIES: TaskCategoryEntity[] = [
     color: '#DDEBFF',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
 ];
 
@@ -84,6 +89,7 @@ export const createSeedState = (): AppState => ({
       color: '#EFE2FB',
       kind: 'custom',
       archived: false,
+      archivedAt: null,
     },
   ],
   tasks: [
@@ -202,36 +208,6 @@ export const createSeedState = (): AppState => ({
     notificationsEnabled: false,
     hasCompletedOnboarding: false,
     hasSeenAppTour: false,
-    waterReminderIntervalMinutes: 90,
-    waterReminderCutoffTime: '22:00',
-    themeMode: 'system',
-  },
-});
-
-export const createEmptyState = (): AppState => ({
-  schemaVersion: '1',
-  hydrationToday: {
-    date: todayKey,
-    consumedMl: 0,
-    entries: [],
-    isGoalReached: false,
-    overflowMl: 0,
-  },
-  hydrationHistory: [],
-  taskCategories: [...PRESET_TASK_CATEGORIES],
-  tasks: [],
-  taskCompletions: [],
-  habits: [],
-  preferences: {
-    displayName: 'User',
-    dailyWaterTargetMl: 2500,
-    quickWaterAmounts: [250, 500, 750],
-    dayStartsAt: '00:00',
-    timeFormat: '12h',
-    weekStartsOn: 1,
-    notificationsEnabled: false,
-    hasCompletedOnboarding: true,
-    hasSeenAppTour: true,
     waterReminderIntervalMinutes: 90,
     waterReminderCutoffTime: '22:00',
     themeMode: 'system',

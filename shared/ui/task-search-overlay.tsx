@@ -20,8 +20,11 @@ interface TaskSearchOverlayProps {
   visible: boolean;
   query: string;
   results: TaskListItemViewModel[];
+  includeArchived: boolean;
+  scopeLabel: string;
   onChangeQuery: (value: string) => void;
   onClose: () => void;
+  onToggleIncludeArchived: () => void;
   onSelect?: (item: TaskListItemViewModel) => void;
 }
 
@@ -29,8 +32,11 @@ export function TaskSearchOverlay({
   visible,
   query,
   results,
+  includeArchived,
+  scopeLabel,
   onChangeQuery,
   onClose,
+  onToggleIncludeArchived,
   onSelect,
 }: TaskSearchOverlayProps) {
   const theme = useTheme();
@@ -38,6 +44,7 @@ export function TaskSearchOverlay({
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(12)).current;
   const scale = useRef(new Animated.Value(0.98)).current;
+  const hasQuery = Boolean(query.trim());
 
   useEffect(() => {
     setGestureBlock('task-search-overlay', visible);
@@ -156,6 +163,40 @@ export function TaskSearchOverlay({
                 </Text>
               </Pressable>
             </View>
+            <View style={styles.scopeRow}>
+              <Text
+                style={[
+                  styles.scopeLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {scopeLabel}
+              </Text>
+              <Pressable
+                onPress={onToggleIncludeArchived}
+                style={[
+                  styles.scopeToggle,
+                  {
+                    backgroundColor: includeArchived
+                      ? theme.colors.brandSoft
+                      : theme.colors.surfaceMuted,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.scopeToggleLabel,
+                    {
+                      color: includeArchived
+                        ? theme.colors.brand
+                        : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {includeArchived ? 'Archived included' : 'Include archived'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           <View
@@ -187,82 +228,56 @@ export function TaskSearchOverlay({
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                {query.trim()
+                {hasQuery
                   ? `${results.length} result${results.length === 1 ? '' : 's'}`
-                  : 'Current task list'}
+                  : scopeLabel}
               </Text>
             </View>
 
-            {query.trim() ? (
-              results.length ? (
-                <ScrollView
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                >
-                  <View style={styles.resultsList}>
-                    {results.map((item) => (
-                      <Pressable
-                        key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
-                        onPress={() => onSelect?.(item)}
-                        style={({ pressed }) => [
-                          styles.resultRow,
-                          {
-                            backgroundColor: theme.colors.surfaceMuted,
-                            borderColor: theme.colors.divider,
-                          },
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <View style={styles.resultBody}>
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.resultTitle,
-                              { color: theme.colors.textPrimary },
-                            ]}
-                          >
-                            {item.task.title}
-                          </Text>
-                          <Text
-                            numberOfLines={2}
-                            style={[
-                              styles.resultSubtitle,
-                              { color: theme.colors.textSecondary },
-                            ]}
-                          >
-                            {item.category.label} •{' '}
-                            {item.occurrence.displayTime} • {item.task.priority}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-              ) : (
-                <View
-                  style={[
-                    styles.emptyState,
-                    { backgroundColor: theme.colors.surfaceMuted },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.emptyTitle,
-                      { color: theme.colors.textPrimary },
-                    ]}
-                  >
-                    Nothing found
-                  </Text>
-                  <Text
-                    style={[
-                      styles.emptyDescription,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    Try a different task name, category, note or priority.
-                  </Text>
+            {results.length ? (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.resultsList}>
+                  {results.map((item) => (
+                    <Pressable
+                      key={`${item.task.id}-${item.occurrence.occurrenceDate}`}
+                      onPress={() => onSelect?.(item)}
+                      style={({ pressed }) => [
+                        styles.resultRow,
+                        {
+                          backgroundColor: theme.colors.surfaceMuted,
+                          borderColor: theme.colors.divider,
+                        },
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <View style={styles.resultBody}>
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.resultTitle,
+                            { color: theme.colors.textPrimary },
+                          ]}
+                        >
+                          {item.task.title}
+                        </Text>
+                        <Text
+                          numberOfLines={2}
+                          style={[
+                            styles.resultSubtitle,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {item.category.label} • {item.occurrence.displayTime}{' '}
+                          • {item.task.priority}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
                 </View>
-              )
+              </ScrollView>
             ) : (
               <View
                 style={[
@@ -276,7 +291,7 @@ export function TaskSearchOverlay({
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  Start typing
+                  {hasQuery ? 'Nothing found' : 'No tasks in this filter'}
                 </Text>
                 <Text
                   style={[
@@ -284,7 +299,9 @@ export function TaskSearchOverlay({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Search runs against the tasks visible in the current filter.
+                  {hasQuery
+                    ? 'Try a different task name, category, note or priority.'
+                    : 'Global search lists every active task and can optionally include archived items.'}
                 </Text>
               </View>
             )}
@@ -314,6 +331,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  scopeRow: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  scopeLabel: { ...typography.caption, flex: 1 },
+  scopeToggle: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  scopeToggleLabel: {
+    ...typography.caption,
+    fontSize: 13,
   },
   input: {
     flex: 1,

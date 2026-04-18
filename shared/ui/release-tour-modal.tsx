@@ -36,14 +36,14 @@ const steps = [
   {
     id: 'habits',
     title: 'Habits stay separate from tasks',
-    body: 'Tap a card to mark progress. Long press any habit to edit schedule, reminder and goal.',
+    body: 'Tap a card to open schedule and history. From there you can mark today done or long press any habit to edit.',
     icon: 'leaf-outline',
     route: '/habits',
   },
   {
     id: 'profile',
     title: 'Profile is your control room',
-    body: 'Theme, notifications, data export and the tour itself now live there for easy recovery.',
+    body: 'Overview and release checks live here, while the full settings hub keeps backups, theme and notifications in one place.',
     icon: 'person-outline',
     route: '/profile',
   },

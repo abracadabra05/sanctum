@@ -1,17 +1,10 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { router, Tabs } from 'expo-router';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from 'react';
+import { TabActions } from '@react-navigation/native';
+import { Tabs } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
   Easing,
   LayoutChangeEvent,
   Pressable,
@@ -40,23 +33,33 @@ const labelMap = {
   profile: 'Profile',
 };
 
-const tabPaths = ['/', '/tasks', '/habits', '/profile'] as const;
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-function SanctumTabBar({
-  state,
-  descriptors,
-  navigation,
-  gestureHandlerRef,
-}: BottomTabBarProps & {
-  gestureHandlerRef: MutableRefObject<PanGestureHandler | null>;
-}) {
+const TAB_BAR_BLOCKERS = new Set([
+  'task-sheet',
+  'task-sheet-drag',
+  'habit-sheet',
+  'habit-sheet-drag',
+  'habit-detail-sheet',
+  'task-search-overlay',
+  'app-menu',
+  'radial-fab',
+  'release-tour',
+  'task-filter-scroll',
+  'dashboard-habits-scroll',
+  'task-card-swipe-intent',
+  'task-swipe',
+]);
+
+function SanctumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const setGestureBlock = useUiStore((store) => store.setGestureBlock);
+  const gestureBlockers = useUiStore((store) => store.gestureBlockers);
+  const isTabBarBlocked = useMemo(
+    () => gestureBlockers.some((reason) => TAB_BAR_BLOCKERS.has(reason)),
+    [gestureBlockers],
+  );
   const dragStartX = useRef(0);
   const isDraggingRef = useRef(false);
 
@@ -106,13 +109,44 @@ function SanctumTabBar({
     [pillOpacity, pillTranslateX, pillWidth],
   );
 
+  const animatePillToTab = useCallback(
+    (index: number) => {
+      const layout = tabLayouts[index];
+      if (!layout || layout.width <= 0) {
+        return;
+      }
+
+      Animated.parallel([
+        Animated.spring(pillTranslateX, {
+          toValue: layout.x,
+          damping: 18,
+          stiffness: 200,
+          useNativeDriver: false,
+        }),
+        Animated.spring(pillWidth, {
+          toValue: layout.width,
+          damping: 18,
+          stiffness: 200,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pillOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    },
+    [pillOpacity, pillTranslateX, pillWidth, tabLayouts],
+  );
+
   const getNearestTabIndex = useCallback(
     (positionX: number) =>
       tabLayouts.reduce((closestIndex, layout, index) => {
-        const closestDistance = Math.abs(
-          tabLayouts[closestIndex].x - positionX,
-        );
-        const currentDistance = Math.abs(layout.x - positionX);
+        const closestCenter =
+          tabLayouts[closestIndex].x + tabLayouts[closestIndex].width / 2;
+        const currentCenter = layout.x + layout.width / 2;
+        const closestDistance = Math.abs(closestCenter - positionX);
+        const currentDistance = Math.abs(currentCenter - positionX);
         return currentDistance < closestDistance ? index : closestIndex;
       }, state.index),
     [state.index, tabLayouts],
@@ -160,7 +194,6 @@ function SanctumTabBar({
       isDraggingRef.current = true;
       dragStartX.current = activeLayout.x;
       pillOpacity.setValue(1);
-      setGestureBlock('tabbar-drag', true);
       return;
     }
 
@@ -169,7 +202,6 @@ function SanctumTabBar({
     }
 
     isDraggingRef.current = false;
-    setGestureBlock('tabbar-drag', false);
 
     const firstLayout = tabLayouts[0];
     const lastLayout = tabLayouts[tabLayouts.length - 1];
@@ -177,35 +209,25 @@ function SanctumTabBar({
       return;
     }
 
-    const projectedX = clamp(
-      dragStartX.current + nativeEvent.translationX,
-      firstLayout.x,
-      lastLayout.x,
+    const projectedCenter = clamp(
+      dragStartX.current + nativeEvent.translationX + activeLayout.width / 2,
+      firstLayout.x + firstLayout.width / 2,
+      lastLayout.x + lastLayout.width / 2,
     );
     const nextIndex =
       Math.abs(nativeEvent.translationX) < 12
         ? state.index
-        : getNearestTabIndex(projectedX);
-    const nextLayout = tabLayouts[nextIndex] ?? activeLayout;
-
-    Animated.parallel([
-      Animated.spring(pillTranslateX, {
-        toValue: nextLayout.x,
-        damping: 18,
-        stiffness: 200,
-        useNativeDriver: false,
-      }),
-      Animated.spring(pillWidth, {
-        toValue: nextLayout.width,
-        damping: 18,
-        stiffness: 200,
-        useNativeDriver: false,
-      }),
-    ]).start();
+        : getNearestTabIndex(projectedCenter);
 
     if (nextIndex !== state.index) {
-      navigation.navigate(state.routes[nextIndex].name);
+      const route = state.routes[nextIndex];
+      if (route) {
+        animatePillToTab(nextIndex);
+        navigation.dispatch(TabActions.jumpTo(route.name));
+      }
+      return;
     }
+    animatePillToTab(state.index);
   };
 
   const handleTabDrag = ({ nativeEvent }: PanGestureHandlerGestureEvent) => {
@@ -240,10 +262,10 @@ function SanctumTabBar({
     >
       <PanGestureHandler
         activeOffsetX={[-12, 12]}
+        enabled={!isTabBarBlocked}
         failOffsetY={[-10, 10]}
         onGestureEvent={handleTabDrag}
         onHandlerStateChange={handleTabDragStateChange}
-        ref={gestureHandlerRef}
       >
         <Animated.View
           style={[
@@ -270,13 +292,19 @@ function SanctumTabBar({
             const focused = state.index === index;
             const options = descriptors[route.key].options;
             const onPress = () => {
-              navigation.emit({
+              if (isTabBarBlocked) {
+                return;
+              }
+
+              const event = navigation.emit({
                 type: 'tabPress',
                 target: route.key,
                 canPreventDefault: true,
               });
-              if (!focused) {
-                navigation.navigate(route.name);
+
+              if (!focused && !event.defaultPrevented) {
+                animatePillToTab(index);
+                navigation.dispatch(TabActions.jumpTo(route.name));
               }
             };
 
@@ -287,6 +315,7 @@ function SanctumTabBar({
                 accessibilityLabel={
                   options.title ?? labelMap[route.name as keyof typeof labelMap]
                 }
+                disabled={isTabBarBlocked}
                 onLayout={handleTabLayout(index)}
                 onPress={onPress}
                 style={({ pressed }) => [
@@ -327,14 +356,7 @@ export default function TabsLayout() {
     (state) => state.preferences.hasSeenAppTour,
   );
   const setAppTourSeen = useAppStore((state) => state.setAppTourSeen);
-  const isNavigationGestureBlocked = useUiStore(
-    (state) => state.isNavigationGestureBlocked,
-  );
-  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const [tourVisible, setTourVisible] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const tabBarGestureRef = useRef<PanGestureHandler | null>(null);
-  const ignoreGlobalSwipeRef = useRef(false);
 
   useEffect(() => {
     if (isReady && hasCompletedOnboarding && !hasSeenAppTour) {
@@ -342,130 +364,60 @@ export default function TabsLayout() {
     }
   }, [hasCompletedOnboarding, hasSeenAppTour, isReady]);
 
-  const handleGlobalSwipeStateChange = ({
-    nativeEvent,
-  }: PanGestureHandlerStateChangeEvent) => {
-    if (nativeEvent.state === GestureState.ACTIVE) {
-      if (useUiStore.getState().isNavigationGestureBlocked) {
-        ignoreGlobalSwipeRef.current = true;
-        return;
-      }
-
-      ignoreGlobalSwipeRef.current = false;
-      setGestureBlock('global-tab-swipe', true);
-      return;
-    }
-
-    if (nativeEvent.oldState !== GestureState.ACTIVE) {
-      return;
-    }
-
-    setGestureBlock('global-tab-swipe', false);
-
-    if (
-      ignoreGlobalSwipeRef.current ||
-      useUiStore.getState().isNavigationGestureBlocked
-    ) {
-      ignoreGlobalSwipeRef.current = false;
-      return;
-    }
-
-    ignoreGlobalSwipeRef.current = false;
-
-    const horizontalIntent =
-      Math.abs(nativeEvent.translationX) >
-      Math.abs(nativeEvent.translationY) * 1.4;
-    const strongEnough =
-      Math.abs(nativeEvent.translationX) > 104 ||
-      Math.abs(nativeEvent.velocityX) > 780;
-
-    if (!horizontalIntent || !strongEnough) {
-      return;
-    }
-
-    const nextIndex = clamp(
-      nativeEvent.translationX < 0 ? activeIndex + 1 : activeIndex - 1,
-      0,
-      3,
-    );
-
-    if (nextIndex === activeIndex) {
-      return;
-    }
-
-    router.navigate(tabPaths[nextIndex]);
-  };
-
   return (
     <View
       style={[styles.layout, { backgroundColor: theme.colors.backgroundTop }]}
     >
-      <PanGestureHandler
-        activeOffsetX={[-34, 34]}
-        enabled={!isNavigationGestureBlocked}
-        failOffsetY={[-18, 18]}
-        onHandlerStateChange={handleGlobalSwipeStateChange}
-        waitFor={tabBarGestureRef}
-      >
-        <Animated.View style={styles.layout}>
-          <Tabs
-            screenListeners={{
-              state: (event) => {
-                const index = event.data.state?.index;
-                if (typeof index === 'number') {
-                  setActiveIndex(index);
-                }
+      <Animated.View style={styles.layout}>
+        <Tabs
+          detachInactiveScreens={false}
+          screenOptions={{
+            headerShown: false,
+            lazy: false,
+            freezeOnBlur: false,
+            sceneStyle: { backgroundColor: theme.colors.backgroundTop },
+            transitionSpec: {
+              animation: 'timing',
+              config: {
+                duration: 300,
+                easing: Easing.bezier(0.22, 1, 0.36, 1),
               },
-            }}
-            screenOptions={{
-              headerShown: false,
-              animation: 'none',
-              transitionSpec: {
-                animation: 'timing',
-                config: {
-                  duration: 240,
-                  easing: Easing.out(Easing.cubic),
-                },
+            },
+            sceneStyleInterpolator: ({ current }) => ({
+              sceneStyle: {
+                transform: [
+                  {
+                    translateX: current.progress.interpolate({
+                      inputRange: [-1, 0, 1],
+                      outputRange: [-14, 0, 14],
+                    }),
+                  },
+                  {
+                    scale: current.progress.interpolate({
+                      inputRange: [-1, 0, 1],
+                      outputRange: [0.996, 1, 0.996],
+                    }),
+                  },
+                ],
               },
-              sceneStyleInterpolator: ({ current }) => ({
-                sceneStyle: {
-                  opacity: current.progress.interpolate({
-                    inputRange: [-1, -0.18, 0, 0.18, 1],
-                    outputRange: [0.9, 0.98, 1, 0.98, 0.9],
-                    extrapolate: 'clamp',
-                  }),
-                  transform: [
-                    {
-                      translateX: current.progress.interpolate({
-                        inputRange: [-1, 0, 1],
-                        outputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-                        extrapolate: 'clamp',
-                      }),
-                    },
-                  ],
-                },
-              }),
-              sceneStyle: { backgroundColor: theme.colors.backgroundTop },
-            }}
-            tabBar={(props) => (
-              <SanctumTabBar {...props} gestureHandlerRef={tabBarGestureRef} />
-            )}
-          >
-            <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
-            <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
-            <Tabs.Screen name="habits" options={{ title: 'Habits' }} />
-            <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-          </Tabs>
-          <ArchiveSnackbar />
-          <ReleaseTourModal
-            visible={tourVisible}
-            onFinish={() => {
-              setTourVisible(false);
-              setAppTourSeen(true);
-            }}
-          />
-        </Animated.View>
-      </PanGestureHandler>
+            }),
+          }}
+          tabBar={(props) => <SanctumTabBar {...props} />}
+        >
+          <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
+          <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
+          <Tabs.Screen name="habits" options={{ title: 'Habits' }} />
+          <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+        </Tabs>
+        <ArchiveSnackbar />
+        <ReleaseTourModal
+          visible={tourVisible}
+          onFinish={() => {
+            setTourVisible(false);
+            setAppTourSeen(true);
+          }}
+        />
+      </Animated.View>
     </View>
   );
 }

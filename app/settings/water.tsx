@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { getHydrationHistoryItems } from '@/features/hydration/selectors';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
+import { HydrationHistoryList } from '@/shared/ui/hydration-history-list';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 const targetPresets = [1800, 2200, 2500, 3000];
@@ -14,6 +16,8 @@ const buildQuickDraft = (amounts: number[]) =>
 export default function WaterSettingsScreen() {
   const theme = useTheme();
   const preferences = useAppStore((state) => state.preferences);
+  const hydrationToday = useAppStore((state) => state.hydrationToday);
+  const hydrationHistory = useAppStore((state) => state.hydrationHistory);
   const setDailyWaterTarget = useAppStore((state) => state.setDailyWaterTarget);
   const setQuickWaterAmounts = useAppStore(
     (state) => state.setQuickWaterAmounts,
@@ -29,6 +33,16 @@ export default function WaterSettingsScreen() {
         .map((item) => Number(item))
         .filter((item) => !Number.isNaN(item) && item > 0),
     [quickDraft],
+  );
+
+  const hydrationHistoryItems = useMemo(
+    () =>
+      getHydrationHistoryItems(
+        hydrationToday,
+        hydrationHistory,
+        preferences.dailyWaterTargetMl,
+      ),
+    [hydrationHistory, hydrationToday, preferences.dailyWaterTargetMl],
   );
 
   const setQuickValue = (index: number, value: string) => {
@@ -252,6 +266,8 @@ export default function WaterSettingsScreen() {
           </Text>
         </Pressable>
       </View>
+
+      <HydrationHistoryList items={hydrationHistoryItems} />
     </ScreenShell>
   );
 }

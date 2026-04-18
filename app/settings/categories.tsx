@@ -30,6 +30,7 @@ export default function CategoriesSettingsScreen() {
   const [label, setLabel] = useState('');
   const [color, setColor] = useState(palette[0]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const activeCategories = useMemo(
     () => categories.filter((item) => !item.archived),
@@ -40,6 +41,7 @@ export default function CategoriesSettingsScreen() {
 
   const handleSave = () => {
     if (!label.trim()) {
+      setError('Category name is required.');
       return;
     }
 
@@ -52,6 +54,7 @@ export default function CategoriesSettingsScreen() {
     setLabel('');
     setColor(palette[0]);
     setEditingId(null);
+    setError(null);
   };
 
   return (
@@ -78,7 +81,12 @@ export default function CategoriesSettingsScreen() {
         </Text>
 
         <TextInput
-          onChangeText={setLabel}
+          onChangeText={(value) => {
+            setLabel(value);
+            if (error) {
+              setError(null);
+            }
+          }}
           placeholder="Category name"
           placeholderTextColor={theme.colors.textMuted}
           style={[
@@ -86,10 +94,17 @@ export default function CategoriesSettingsScreen() {
             {
               backgroundColor: theme.colors.input,
               color: theme.colors.textPrimary,
+              borderColor: error ? theme.colors.accentRed : 'transparent',
+              borderWidth: 1,
             },
           ]}
           value={label}
         />
+        {error ? (
+          <Text style={[styles.errorText, { color: theme.colors.accentRed }]}>
+            {error}
+          </Text>
+        ) : null}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.swatches}>
@@ -222,6 +237,7 @@ export default function CategoriesSettingsScreen() {
                       setEditingId(category.id);
                       setLabel(category.label);
                       setColor(category.color);
+                      setError(null);
                     }}
                   >
                     <Text style={[styles.link, { color: theme.colors.brand }]}>
@@ -229,9 +245,17 @@ export default function CategoriesSettingsScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={() =>
-                      archiveTaskCategory(category.id, fallbackCategory?.id)
-                    }
+                    onPress={() => {
+                      if (!fallbackCategory) {
+                        setError(
+                          'Add another active category before archiving this one.',
+                        );
+                        return;
+                      }
+
+                      archiveTaskCategory(category.id, fallbackCategory.id);
+                      setError(null);
+                    }}
                   >
                     <Text
                       style={[
@@ -269,10 +293,12 @@ const styles = StyleSheet.create({
   body: { ...typography.body },
   input: {
     borderRadius: 18,
+    borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
   },
+  errorText: { ...typography.caption, marginTop: -spacing.sm },
   swatches: { flexDirection: 'row', gap: spacing.sm },
   swatch: { width: 30, height: 30, borderRadius: 15 },
   actions: {

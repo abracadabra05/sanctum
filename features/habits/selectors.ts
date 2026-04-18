@@ -1,19 +1,22 @@
 import {
   addDays,
+  formatDateKeyLabel,
   formatTimeLabel,
+  formatWeekdayLabel,
   fromDateKey,
+  getOrderedWeekdays,
   getWeekday,
   toDateKey,
 } from '@/shared/lib/date';
 import type {
   HabitCardViewModel,
+  HabitDetailViewModel,
   HabitItem,
   TimeFormat,
 } from '@/shared/types/app';
 
 const shouldRunOnDate = (habit: HabitItem, dateKey: string) => {
-  const date = fromDateKey(dateKey);
-  return habit.schedule.days.includes(getWeekday(date));
+  return habit.schedule.days.includes(getWeekday(fromDateKey(dateKey)));
 };
 
 export const calculateHabitStreak = (habit: HabitItem, today = new Date()) => {
@@ -70,3 +73,43 @@ export const getHabitCards = (
         : null,
     isArchived: habit.archived,
   }));
+
+export const getHabitScheduleLabel = (habit: HabitItem) => {
+  const orderedDays = getOrderedWeekdays(1);
+  const labels = orderedDays
+    .filter((day) => habit.schedule.days.includes(day))
+    .map((day) => formatWeekdayLabel(day));
+
+  return labels.join(', ');
+};
+
+export const getHabitDetail = (
+  habit: HabitItem,
+  timeFormat: TimeFormat,
+  today = new Date(),
+): HabitDetailViewModel => {
+  const todayKey = toDateKey(today);
+  const recentHistory = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(today, -index);
+    const dateKey = toDateKey(date);
+    return {
+      date: dateKey,
+      label:
+        index === 0
+          ? 'Today'
+          : formatDateKeyLabel(dateKey, { includeWeekday: true }),
+      isCompleted: habit.completions.includes(dateKey),
+    };
+  });
+
+  return {
+    ...getHabitCards([habit], timeFormat)[0],
+    scheduleLabel: getHabitScheduleLabel(habit),
+    weeklySummary:
+      habit.goalMode === 'weekly'
+        ? `Goal ${habit.targetPerPeriod} times per week`
+        : 'Goal once per scheduled day',
+    isCompletedToday: habit.completions.includes(todayKey),
+    recentHistory,
+  };
+};

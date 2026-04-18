@@ -1,23 +1,25 @@
 import { create } from 'zustand';
 
-import { combineDateAndTime, toDateKey } from '@/shared/lib/date';
+import { isValidTimeValue } from '@/shared/lib/date';
 import { pickAndImportState } from '@/shared/services/data-transfer';
-import {
-  requestNotificationPermissions,
-  syncHabitNotifications,
-  syncWaterNotifications,
-} from '@/shared/services/notifications';
+import { requestNotificationPermissions } from '@/shared/services/notifications';
 import {
   importAppStatePayload,
   loadAppState,
   resetAppState,
-  saveAppState,
 } from '@/shared/storage/adapter';
+import { PRESET_TASK_CATEGORIES, createSeedState } from '@/shared/storage/seed';
 import {
-  PRESET_TASK_CATEGORIES,
-  createEmptyState,
-  createSeedState,
-} from '@/shared/storage/seed';
+  applyHydrationDerived,
+  buildSnapshot,
+  ensureDayState,
+  normalizeDisplayPreferences,
+  normalizeHabitPatch,
+  normalizeQuickWaterAmounts,
+  normalizeTaskCreateInput,
+  normalizeTaskPatch,
+  persistSnapshot,
+} from '@/shared/store/app-state-helpers';
 import type {
   AppState,
   HabitItem,
@@ -77,6 +79,7 @@ interface AppStore extends AppState {
   ) => void;
   updateTaskCategory: (id: string, patch: Partial<TaskCategoryEntity>) => void;
   archiveTaskCategory: (id: string, fallbackCategoryId?: string) => void;
+  restoreTaskCategory: (id: string) => void;
   createHabit: (input: CreateHabitInput) => void;
   updateHabit: (id: string, patch: Partial<HabitItem>) => void;
   archiveHabit: (id: string) => void;
@@ -98,68 +101,6 @@ interface AppStore extends AppState {
   resetAllData: () => Promise<void>;
 }
 
-const buildSnapshot = (state: Pick<AppStore, keyof AppState>): AppState => ({
-  schemaVersion: state.schemaVersion,
-  hydrationToday: state.hydrationToday,
-  hydrationHistory: state.hydrationHistory,
-  tasks: state.tasks,
-  taskCompletions: state.taskCompletions,
-  taskCategories: state.taskCategories,
-  habits: state.habits,
-  preferences: state.preferences,
-});
-
-const persistSnapshot = async (state: AppState) => {
-  try {
-    await saveAppState(state);
-    await syncWaterNotifications(state);
-    await syncHabitNotifications(state);
-  } catch (error) {
-    console.error('[AppStore] Failed to persist app state:', error);
-  }
-};
-
-const applyHydrationDerived = (state: AppState): AppState => {
-  const overflowMl = Math.max(
-    0,
-    state.hydrationToday.consumedMl - state.preferences.dailyWaterTargetMl,
-  );
-  return {
-    ...state,
-    hydrationToday: {
-      ...state.hydrationToday,
-      isGoalReached:
-        state.hydrationToday.consumedMl >= state.preferences.dailyWaterTargetMl,
-      overflowMl,
-    },
-  };
-};
-
-const ensureDayState = (state: AppState): AppState => {
-  const todayKey = toDateKey(new Date());
-  if (state.hydrationToday.date === todayKey) {
-    return applyHydrationDerived(state);
-  }
-
-  const previousDay = applyHydrationDerived(state).hydrationToday;
-  return {
-    ...state,
-    hydrationHistory: [
-      previousDay,
-      ...state.hydrationHistory.filter(
-        (item) => item.date !== previousDay.date,
-      ),
-    ],
-    hydrationToday: {
-      date: todayKey,
-      consumedMl: 0,
-      entries: [],
-      isGoalReached: false,
-      overflowMl: 0,
-    },
-  };
-};
-
 const initialState = ensureDayState(createSeedState());
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -170,9 +111,6 @@ export const useAppStore = create<AppStore>((set) => ({
     const loaded = ensureDayState(await loadAppState());
     set({ ...loaded, isReady: true, activeTaskFilter: 'all' });
     await persistSnapshot(loaded);
-    // Re-schedule notifications on every app launch
-    await syncWaterNotifications(loaded);
-    await syncHabitNotifications(loaded);
   },
   rolloverDayIfNeeded: () => {
     set((state) => {
@@ -226,7 +164,7 @@ export const useAppStore = create<AppStore>((set) => ({
         ...buildSnapshot(state),
         preferences: {
           ...state.preferences,
-          quickWaterAmounts: amountsMl.filter((item) => item > 0).slice(0, 4),
+          quickWaterAmounts: normalizeQuickWaterAmounts(amountsMl),
         },
       };
       void persistSnapshot(nextState);
@@ -234,18 +172,32 @@ export const useAppStore = create<AppStore>((set) => ({
     });
   },
   createTask: (input) => {
+    const normalizedTask = normalizeTaskCreateInput({
+      title: input.title,
+      notes: input.notes ?? '',
+      priority: input.priority ?? 'medium',
+      repeatRule: input.repeatRule ?? { type: 'none' },
+      categoryId: input.categoryId,
+      dueDate: input.dueDate,
+      dueTime: input.dueTime,
+    });
+
+    if (!normalizedTask) {
+      return;
+    }
+
     set((state) => {
       const nextState = {
         ...buildSnapshot(state),
         tasks: [
           {
             id: `task-${Date.now()}`,
-            title: input.title,
-            notes: input.notes ?? '',
-            priority: input.priority ?? 'medium',
-            repeatRule: input.repeatRule ?? { type: 'none' },
-            categoryId: input.categoryId,
-            dueAt: combineDateAndTime(input.dueDate, input.dueTime),
+            title: normalizedTask.title,
+            notes: normalizedTask.notes,
+            priority: normalizedTask.priority,
+            repeatRule: normalizedTask.repeatRule,
+            categoryId: normalizedTask.categoryId,
+            dueAt: normalizedTask.dueAt,
             completedAt: null,
             archived: false,
             archivedAt: null,
@@ -262,16 +214,7 @@ export const useAppStore = create<AppStore>((set) => ({
       const nextState = {
         ...buildSnapshot(state),
         tasks: state.tasks.map((task) =>
-          task.id === id
-            ? {
-                ...task,
-                ...patch,
-                dueAt:
-                  patch.dueDate && patch.dueTime
-                    ? combineDateAndTime(patch.dueDate, patch.dueTime)
-                    : task.dueAt,
-              }
-            : task,
+          task.id === id ? (normalizeTaskPatch(task, patch) ?? task) : task,
         ),
       };
       void persistSnapshot(nextState);
@@ -340,10 +283,11 @@ export const useAppStore = create<AppStore>((set) => ({
           ...state.taskCategories,
           {
             id: `category-${Date.now()}`,
-            label: input.label,
+            label: input.label.trim(),
             color: input.color,
             kind: 'custom' as const,
             archived: false,
+            archivedAt: null,
           },
         ],
       };
@@ -364,10 +308,20 @@ export const useAppStore = create<AppStore>((set) => ({
   archiveTaskCategory: (id, fallbackCategoryId) =>
     set((state) => {
       const fallback = fallbackCategoryId ?? PRESET_TASK_CATEGORIES[0].id;
+      if (!fallback || fallback === id) {
+        return state;
+      }
+
       const nextState = {
         ...buildSnapshot(state),
         taskCategories: state.taskCategories.map((category) =>
-          category.id === id ? { ...category, archived: true } : category,
+          category.id === id
+            ? {
+                ...category,
+                archived: true,
+                archivedAt: category.archivedAt ?? new Date().toISOString(),
+              }
+            : category,
         ),
         tasks: state.tasks.map((task) =>
           task.categoryId === id ? { ...task, categoryId: fallback } : task,
@@ -376,14 +330,37 @@ export const useAppStore = create<AppStore>((set) => ({
       void persistSnapshot(nextState);
       return nextState;
     }),
+  restoreTaskCategory: (id) =>
+    set((state) => {
+      const nextState = {
+        ...buildSnapshot(state),
+        taskCategories: state.taskCategories.map((category) =>
+          category.id === id
+            ? { ...category, archived: false, archivedAt: null }
+            : category,
+        ),
+      };
+      void persistSnapshot(nextState);
+      return nextState;
+    }),
   createHabit: (input) =>
     set((state) => {
+      if (
+        !input.name.trim() ||
+        input.targetPerPeriod <= 0 ||
+        input.schedule.days.length === 0 ||
+        (input.reminder.enabled &&
+          (!input.reminder.time || !isValidTimeValue(input.reminder.time)))
+      ) {
+        return state;
+      }
+
       const nextState = {
         ...buildSnapshot(state),
         habits: [
           {
             id: `habit-${Date.now()}`,
-            name: input.name,
+            name: input.name.trim(),
             icon: input.icon,
             accentColor: input.accentColor,
             goalMode: input.goalMode,
@@ -402,10 +379,21 @@ export const useAppStore = create<AppStore>((set) => ({
     }),
   updateHabit: (id, patch) =>
     set((state) => {
+      const normalizedPatch = normalizeHabitPatch(patch);
+      if (!normalizedPatch) {
+        return state;
+      }
+
       const nextState = {
         ...buildSnapshot(state),
         habits: state.habits.map((habit) =>
-          habit.id === id ? { ...habit, ...patch } : habit,
+          habit.id === id
+            ? {
+                ...habit,
+                ...normalizedPatch,
+                name: normalizedPatch.name?.trim() ?? habit.name,
+              }
+            : habit,
         ),
       };
       void persistSnapshot(nextState);
@@ -465,6 +453,13 @@ export const useAppStore = create<AppStore>((set) => ({
       return nextState;
     }),
   setNotificationPreferences: async (input) => {
+    if (
+      input.waterReminderIntervalMinutes <= 0 ||
+      !isValidTimeValue(input.waterReminderCutoffTime)
+    ) {
+      return;
+    }
+
     const granted = input.enabled
       ? await requestNotificationPermissions()
       : false;
@@ -486,13 +481,17 @@ export const useAppStore = create<AppStore>((set) => ({
     set((state) => {
       const nextState = {
         ...buildSnapshot(state),
-        preferences: { ...state.preferences, ...input },
+        preferences: normalizeDisplayPreferences(state.preferences, input),
       };
       void persistSnapshot(nextState);
       return nextState;
     }),
   setTaskFilter: (filter) => set({ activeTaskFilter: filter }),
   completeOnboarding: async (input) => {
+    if (!input.displayName.trim() || input.dailyWaterTargetMl <= 0) {
+      return;
+    }
+
     const notificationsEnabled = input.enableNotifications
       ? await requestNotificationPermissions()
       : false;
@@ -501,7 +500,7 @@ export const useAppStore = create<AppStore>((set) => ({
         ...buildSnapshot(state),
         preferences: {
           ...state.preferences,
-          displayName: input.displayName,
+          displayName: input.displayName.trim(),
           dailyWaterTargetMl: input.dailyWaterTargetMl,
           notificationsEnabled,
           hasCompletedOnboarding: true,
@@ -536,7 +535,7 @@ export const useAppStore = create<AppStore>((set) => ({
   },
   resetAllData: async () => {
     await resetAppState();
-    const nextState = ensureDayState(createEmptyState());
+    const nextState = ensureDayState(createSeedState());
     set({ ...nextState, isReady: true, activeTaskFilter: 'all' });
     await persistSnapshot(nextState);
   },

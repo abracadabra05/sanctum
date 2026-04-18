@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { exportStateToJson } from '@/shared/services/data-transfer';
@@ -6,6 +7,7 @@ import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 export default function DataSettingsScreen() {
+  const router = useRouter();
   const theme = useTheme();
   const schemaVersion = useAppStore((store) => store.schemaVersion);
   const hydrationToday = useAppStore((store) => store.hydrationToday);
@@ -149,7 +151,10 @@ export default function DataSettingsScreen() {
                     text: 'Reset',
                     style: 'destructive',
                     onPress: () => {
-                      void resetAllData();
+                      void (async () => {
+                        await resetAllData();
+                        router.replace('/');
+                      })();
                     },
                   },
                 ],

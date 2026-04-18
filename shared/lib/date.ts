@@ -2,6 +2,9 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+export const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const TIME_VALUE_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export const startOfDay = (value: Date) => {
   const next = new Date(value);
   next.setHours(0, 0, 0, 0);
@@ -21,6 +24,26 @@ export const fromDateKey = (value: string) => {
   return new Date(year, month - 1, day);
 };
 
+export const isValidDateKey = (value: string) =>
+  DATE_KEY_PATTERN.test(value) && toDateKey(fromDateKey(value)) === value;
+
+export const isValidTimeValue = (value: string) =>
+  TIME_VALUE_PATTERN.test(value);
+
+export const compareDateKeys = (left: string, right: string) => {
+  const leftDate = fromDateKey(left).getTime();
+  const rightDate = fromDateKey(right).getTime();
+  return leftDate - rightDate;
+};
+
+export const shiftDateKey = (value: string, amount: number) => {
+  if (!isValidDateKey(value)) {
+    return toDateKey(addDays(new Date(), amount));
+  }
+
+  return toDateKey(addDays(fromDateKey(value), amount));
+};
+
 export const isSameDay = (left: Date, right: Date) =>
   startOfDay(left).getTime() === startOfDay(right).getTime();
 
@@ -38,6 +61,20 @@ export const addMinutes = (value: Date, amount: number) => {
 
 export const getWeekday = (value: Date): Weekday => value.getDay() as Weekday;
 
+export const getOrderedWeekdays = (weekStartsOn: Weekday) =>
+  Array.from(
+    { length: 7 },
+    (_, index) => ((weekStartsOn + index) % 7) as Weekday,
+  );
+
+export const formatWeekdayLabel = (
+  weekday: Weekday,
+  style: 'short' | 'long' = 'short',
+) => {
+  const referenceDate = new Date(2026, 0, 4 + weekday);
+  return referenceDate.toLocaleDateString([], { weekday: style });
+};
+
 export const formatTimeLabel = (value: string, format: '12h' | '24h') => {
   const [hours, minutes] = value.split(':').map(Number);
   const date = new Date();
@@ -49,10 +86,76 @@ export const formatTimeLabel = (value: string, format: '12h' | '24h') => {
   });
 };
 
-export const combineDateAndTime = (dateKey: string, time: string) => {
+export const formatDateLabel = (
+  value: Date,
+  options: { includeWeekday?: boolean; includeYear?: boolean } = {},
+) =>
+  value.toLocaleDateString([], {
+    weekday: options.includeWeekday ? 'short' : undefined,
+    month: 'short',
+    day: 'numeric',
+    year: options.includeYear ? 'numeric' : undefined,
+  });
+
+export const formatDateKeyLabel = (
+  value: string,
+  options: { includeWeekday?: boolean; includeYear?: boolean } = {},
+) =>
+  isValidDateKey(value) ? formatDateLabel(fromDateKey(value), options) : value;
+
+export const formatOccurrenceLabel = (
+  occurrenceDate: string,
+  time: string,
+  format: '12h' | '24h',
+  todayKey = toDateKey(new Date()),
+) => {
+  const prefix =
+    occurrenceDate === todayKey
+      ? 'Today'
+      : formatDateKeyLabel(occurrenceDate, { includeWeekday: true });
+
+  return `${prefix} • ${formatTimeLabel(time, format)}`;
+};
+
+export const formatDateTimeLabel = (
+  value: string,
+  format: '12h' | '24h',
+  options: { includeWeekday?: boolean; includeYear?: boolean } = {},
+) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${formatDateLabel(date, options)} • ${formatTimeLabel(extractLocalTime(value), format)}`;
+};
+
+export const parseTimeValue = (value: string) => {
+  if (!isValidTimeValue(value)) {
+    return null;
+  }
+
+  const [hours, minutes] = value.split(':').map(Number);
+  return { hours, minutes };
+};
+
+export const tryCombineDateAndTime = (dateKey: string, time: string) => {
+  if (!isValidDateKey(dateKey) || !isValidTimeValue(time)) {
+    return null;
+  }
+
   const [year, month, day] = dateKey.split('-').map(Number);
-  const [hours, minutes] = time.split(':').map(Number);
+  const { hours, minutes } = parseTimeValue(time)!;
   return new Date(year, month - 1, day, hours, minutes, 0, 0).toISOString();
+};
+
+export const combineDateAndTime = (dateKey: string, time: string) => {
+  const combined = tryCombineDateAndTime(dateKey, time);
+  if (!combined) {
+    throw new Error(`Invalid date/time input: ${dateKey} ${time}`);
+  }
+
+  return combined;
 };
 
 export const extractLocalTime = (dateIso: string) => {
@@ -60,6 +163,17 @@ export const extractLocalTime = (dateIso: string) => {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
+};
+
+export const shiftTimeValue = (value: string, amountMinutes: number) => {
+  const parsed = parseTimeValue(value);
+  if (!parsed) {
+    return '08:00';
+  }
+
+  const date = new Date();
+  date.setHours(parsed.hours, parsed.minutes, 0, 0);
+  return extractLocalTime(addMinutes(date, amountMinutes).toISOString());
 };
 
 export const isAfterClockTime = (date: Date, cutoff: string) => {

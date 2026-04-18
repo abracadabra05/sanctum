@@ -9,6 +9,24 @@ const fallbackColorMap: Record<string, string> = {
   health: '#F7DCE9',
 };
 
+const normalizeTaskCategories = (
+  categories: unknown,
+  fallback: AppState['taskCategories'],
+) => {
+  if (!Array.isArray(categories)) {
+    return fallback;
+  }
+
+  return categories.map((category: any) => ({
+    id: category.id,
+    label: category.label ?? 'Category',
+    color: category.color ?? '#E8EDF4',
+    kind: category.kind === 'custom' ? 'custom' : 'preset',
+    archived: Boolean(category.archived),
+    archivedAt: category.archivedAt ?? null,
+  }));
+};
+
 export const migrateToLatestAppState = (raw: unknown): AppState => {
   const parsed = appStateSchema.safeParse(raw);
   if (parsed.success) {
@@ -44,6 +62,10 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
                 : null),
           }))
         : seeded.habits,
+      taskCategories: normalizeTaskCategories(
+        legacy.taskCategories,
+        seeded.taskCategories,
+      ),
       preferences: {
         ...seeded.preferences,
         ...(legacy.preferences ?? {}),
@@ -78,9 +100,15 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
         color: fallbackColorMap[id] ?? '#E8EDF4',
         kind: 'custom' as const,
         archived: false,
+        archivedAt: null,
       }
     );
   });
+
+  const normalizedTaskCategories = normalizeTaskCategories(
+    legacy.taskCategories,
+    taskCategories,
+  );
 
   return {
     schemaVersion: '1',
@@ -128,7 +156,7 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
         occurrenceDate: toDateKey(new Date(task.dueAt ?? new Date())),
         completedAt: new Date().toISOString(),
       })),
-    taskCategories,
+    taskCategories: normalizedTaskCategories,
     habits: legacyHabits.map((habit: any) => ({
       id: habit.id,
       name: habit.name ?? 'Habit',

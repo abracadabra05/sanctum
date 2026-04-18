@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
-  Easing,
   Modal,
   Pressable,
   ScrollView,
@@ -10,22 +9,24 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {
-  State as GestureState,
-  PanGestureHandler,
-  type PanGestureHandlerGestureEvent,
-  type PanGestureHandlerStateChangeEvent,
-} from 'react-native-gesture-handler';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 
-import { toDateKey } from '@/shared/lib/date';
+import {
+  buildTaskDraftFromTask,
+  createTaskDraft,
+  getDraftErrors,
+  getTaskDatePresets,
+  taskRepeatOptions,
+  taskTimePresets,
+  validateTaskDraft,
+} from '@/shared/lib/planning-forms';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
-import type {
-  TaskItem,
-  TaskPriority,
-  TaskRepeatRule,
-} from '@/shared/types/app';
+import type { TaskItem, TaskPriority } from '@/shared/types/app';
+import { DateStepper } from '@/shared/ui/date-stepper';
+import { TimeStepper } from '@/shared/ui/time-stepper';
+import { useDraggableSheet } from '@/shared/ui/use-draggable-sheet';
 
 interface CreateTaskSheetProps {
   visible: boolean;
@@ -34,49 +35,7 @@ interface CreateTaskSheetProps {
   initialTask?: TaskItem | null;
 }
 
-interface TaskDraft {
-  title: string;
-  notes: string;
-  categoryId: string;
-  dueDate: string;
-  dueTime: string;
-  priority: TaskPriority;
-  repeatRule: TaskRepeatRule;
-}
-
 const priorities: TaskPriority[] = ['low', 'medium', 'high'];
-const repeatOptions: { label: string; value: TaskRepeatRule }[] = [
-  { label: 'None', value: { type: 'none' } },
-  { label: 'Daily', value: { type: 'daily' } },
-  { label: 'Weekdays', value: { type: 'weekdays' } },
-  { label: 'Weekly', value: { type: 'weekly', day: 1 } },
-  { label: 'Custom', value: { type: 'custom', days: [1, 3, 5] } },
-];
-
-const createTaskDraft = (categoryId: string): TaskDraft => ({
-  title: '',
-  notes: '',
-  categoryId,
-  dueDate: toDateKey(new Date()),
-  dueTime: '18:00',
-  priority: 'medium',
-  repeatRule: { type: 'none' },
-});
-
-const buildDraftFromTask = (task: TaskItem): TaskDraft => {
-  const due = new Date(task.dueAt);
-  return {
-    title: task.title,
-    notes: task.notes,
-    categoryId: task.categoryId,
-    dueDate: toDateKey(due),
-    dueTime: `${String(due.getHours()).padStart(2, '0')}:${String(
-      due.getMinutes(),
-    ).padStart(2, '0')}`,
-    priority: task.priority,
-    repeatRule: task.repeatRule,
-  };
-};
 
 export function CreateTaskSheet({
   visible,
@@ -89,28 +48,35 @@ export function CreateTaskSheet({
   const createTask = useAppStore((state) => state.createTask);
   const updateTask = useAppStore((state) => state.updateTask);
   const archiveTask = useAppStore((state) => state.archiveTask);
-  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
+  const timeFormat = useAppStore((state) => state.preferences.timeFormat);
   const setLastArchivedItem = useUiStore((state) => state.setLastArchivedItem);
 
   const categories = useMemo(
     () => taskCategories.filter((item) => !item.archived),
     [taskCategories],
   );
-
   const fallbackCategoryId = initialCategoryId ?? categories[0]?.id ?? 'work';
-  const [draft, setDraft] = useState<TaskDraft>(() =>
-    createTaskDraft(fallbackCategoryId),
-  );
-  const translateYValue = useRef(new Animated.Value(800)).current;
-  const overlayOpacity = translateYValue.interpolate({
-    inputRange: [0, 260, 800],
-    outputRange: [1, 0.45, 0],
-    extrapolate: 'clamp',
+  const [draft, setDraft] = useState(() => createTaskDraft(fallbackCategoryId));
+  const [showErrors, setShowErrors] = useState(false);
+  const {
+    closeSheet,
+    handleSheetGestureEvent,
+    handleSheetStateChange,
+    overlayOpacity,
+    translateYValue,
+  } = useDraggableSheet({
+    visible,
+    onClose,
+    sheetBlockKey: 'task-sheet',
+    dragBlockKey: 'task-sheet-drag',
   });
 
-  useEffect(() => {
-    setGestureBlock('task-sheet', visible);
+  const validation = useMemo(() => validateTaskDraft(draft), [draft]);
+  const errors = validation.success
+    ? {}
+    : getDraftErrors(validation.error.issues);
 
+  useEffect(() => {
     if (!visible) {
       return;
     }
@@ -123,92 +89,22 @@ export function CreateTaskSheet({
 
     setDraft(
       initialTask
-        ? buildDraftFromTask(initialTask)
+        ? buildTaskDraftFromTask(initialTask)
         : createTaskDraft(nextCategoryId),
     );
-    translateYValue.setValue(800);
-
-    Animated.spring(translateYValue, {
-      toValue: 0,
-      damping: 18,
-      stiffness: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [
-    categories,
-    initialCategoryId,
-    initialTask,
-    setGestureBlock,
-    translateYValue,
-    visible,
-  ]);
-
-  const closeSheet = useCallback(() => {
-    setGestureBlock('task-sheet-drag', false);
-    Animated.timing(translateYValue, {
-      toValue: 800,
-      duration: 180,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      onClose();
-    });
-  }, [onClose, setGestureBlock, translateYValue]);
-
-  const resetSheetPosition = useCallback(() => {
-    Animated.spring(translateYValue, {
-      toValue: 0,
-      damping: 18,
-      stiffness: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [translateYValue]);
-
-  const handleSheetGestureEvent = useCallback(
-    ({ nativeEvent }: PanGestureHandlerGestureEvent) => {
-      translateYValue.setValue(Math.max(0, nativeEvent.translationY));
-    },
-    [translateYValue],
-  );
-
-  const handleSheetStateChange = useCallback(
-    ({ nativeEvent }: PanGestureHandlerStateChangeEvent) => {
-      if (nativeEvent.state === GestureState.ACTIVE) {
-        setGestureBlock('task-sheet-drag', true);
-        return;
-      }
-
-      if (nativeEvent.oldState === GestureState.ACTIVE) {
-        setGestureBlock('task-sheet-drag', false);
-        if (nativeEvent.translationY > 118 || nativeEvent.velocityY > 900) {
-          closeSheet();
-          return;
-        }
-
-        resetSheetPosition();
-        return;
-      }
-
-      if (
-        nativeEvent.state === GestureState.CANCELLED ||
-        nativeEvent.state === GestureState.END ||
-        nativeEvent.state === GestureState.FAILED
-      ) {
-        setGestureBlock('task-sheet-drag', false);
-      }
-    },
-    [closeSheet, resetSheetPosition, setGestureBlock],
-  );
+    setShowErrors(false);
+  }, [categories, initialCategoryId, initialTask, visible]);
 
   const handleSave = () => {
-    if (!draft.title.trim()) {
+    if (!validation.success) {
+      setShowErrors(true);
       return;
     }
 
     if (initialTask) {
       updateTask(initialTask.id, {
         title: draft.title.trim(),
-        notes: draft.notes,
+        notes: draft.notes.trim(),
         categoryId: draft.categoryId,
         dueDate: draft.dueDate,
         dueTime: draft.dueTime,
@@ -218,7 +114,7 @@ export function CreateTaskSheet({
     } else {
       createTask({
         title: draft.title.trim(),
-        notes: draft.notes,
+        notes: draft.notes.trim(),
         priority: draft.priority,
         repeatRule: draft.repeatRule,
         categoryId: draft.categoryId,
@@ -245,20 +141,20 @@ export function CreateTaskSheet({
           ]}
         />
         <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
-        <PanGestureHandler
-          activeOffsetY={12}
-          failOffsetX={[-12, 12]}
-          onGestureEvent={handleSheetGestureEvent}
-          onHandlerStateChange={handleSheetStateChange}
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: theme.colors.surfaceFloating,
+              transform: [{ translateY: translateYValue }],
+            },
+          ]}
         >
-          <Animated.View
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: theme.colors.surfaceFloating,
-                transform: [{ translateY: translateYValue }],
-              },
-            ]}
+          <PanGestureHandler
+            activeOffsetY={12}
+            failOffsetX={[-12, 12]}
+            onGestureEvent={handleSheetGestureEvent}
+            onHandlerStateChange={handleSheetStateChange}
           >
             <View style={styles.dragArea}>
               <View
@@ -268,248 +164,257 @@ export function CreateTaskSheet({
                 ]}
               />
             </View>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-              {initialTask ? 'Edit task' : 'Create task'}
+          </PanGestureHandler>
+
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            {initialTask ? 'Edit task' : 'Create task'}
+          </Text>
+          <TextInput
+            onChangeText={(value) =>
+              setDraft((current) => ({ ...current, title: value }))
+            }
+            placeholder="Task title"
+            placeholderTextColor={theme.colors.textMuted}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.input,
+                color: theme.colors.textPrimary,
+                borderColor:
+                  showErrors && errors.title
+                    ? theme.colors.accentRed
+                    : 'transparent',
+              },
+            ]}
+            value={draft.title}
+          />
+          {showErrors && errors.title ? (
+            <Text style={[styles.errorText, { color: theme.colors.accentRed }]}>
+              {errors.title}
             </Text>
-            <TextInput
-              onChangeText={(value) =>
-                setDraft((current) => ({ ...current, title: value }))
-              }
-              placeholder="Task title"
-              placeholderTextColor={theme.colors.textMuted}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.input,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              value={draft.title}
-            />
-            <TextInput
-              multiline
-              onChangeText={(value) =>
-                setDraft((current) => ({ ...current, notes: value }))
-              }
-              placeholder="Notes"
-              placeholderTextColor={theme.colors.textMuted}
-              style={[
-                styles.input,
-                styles.notesInput,
-                {
-                  backgroundColor: theme.colors.input,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              value={draft.notes}
-            />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.optionRow}>
-                {categories.map((category) => (
-                  <Pressable
-                    key={category.id}
-                    onPress={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        categoryId: category.id,
-                      }))
-                    }
-                    style={({ pressed }) => [
-                      styles.chip,
-                      {
-                        backgroundColor:
-                          draft.categoryId === category.id
-                            ? theme.colors.brand
-                            : theme.colors.surfaceMuted,
-                      },
-                      pressed && styles.chipPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipLabel,
-                        {
-                          color:
-                            draft.categoryId === category.id
-                              ? theme.colors.textOnTint
-                              : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      {category.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <View style={styles.inlineRow}>
-              <TextInput
-                onChangeText={(value) =>
-                  setDraft((current) => ({ ...current, dueDate: value }))
-                }
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={theme.colors.textMuted}
-                style={[
-                  styles.input,
-                  styles.inlineInput,
-                  {
-                    backgroundColor: theme.colors.input,
-                    color: theme.colors.textPrimary,
-                  },
-                ]}
-                value={draft.dueDate}
-              />
-              <TextInput
-                onChangeText={(value) =>
-                  setDraft((current) => ({ ...current, dueTime: value }))
-                }
-                placeholder="HH:MM"
-                placeholderTextColor={theme.colors.textMuted}
-                style={[
-                  styles.input,
-                  styles.inlineInput,
-                  {
-                    backgroundColor: theme.colors.input,
-                    color: theme.colors.textPrimary,
-                  },
-                ]}
-                value={draft.dueTime}
-              />
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.optionRow}>
-                {priorities.map((priority) => (
-                  <Pressable
-                    key={priority}
-                    onPress={() =>
-                      setDraft((current) => ({ ...current, priority }))
-                    }
-                    style={({ pressed }) => [
-                      styles.chip,
-                      {
-                        backgroundColor:
-                          draft.priority === priority
-                            ? theme.colors.brand
-                            : theme.colors.surfaceMuted,
-                      },
-                      pressed && styles.chipPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipLabel,
-                        {
-                          color:
-                            draft.priority === priority
-                              ? theme.colors.textOnTint
-                              : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      {priority}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.optionRow}>
-                {repeatOptions.map((option) => (
-                  <Pressable
-                    key={option.label}
-                    onPress={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        repeatRule: option.value,
-                      }))
-                    }
-                    style={({ pressed }) => [
-                      styles.chip,
-                      {
-                        backgroundColor:
-                          draft.repeatRule.type === option.value.type
-                            ? theme.colors.brand
-                            : theme.colors.surfaceMuted,
-                      },
-                      pressed && styles.chipPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipLabel,
-                        {
-                          color:
-                            draft.repeatRule.type === option.value.type
-                              ? theme.colors.textOnTint
-                              : theme.colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <View style={styles.actions}>
-              {initialTask ? (
+          ) : null}
+
+          <TextInput
+            multiline
+            onChangeText={(value) =>
+              setDraft((current) => ({ ...current, notes: value }))
+            }
+            placeholder="Notes"
+            placeholderTextColor={theme.colors.textMuted}
+            style={[
+              styles.input,
+              styles.notesInput,
+              {
+                backgroundColor: theme.colors.input,
+                color: theme.colors.textPrimary,
+              },
+            ]}
+            value={draft.notes}
+          />
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.optionRow}>
+              {categories.map((category) => (
                 <Pressable
-                  onPress={() => {
-                    archiveTask(initialTask.id);
-                    setLastArchivedItem({
-                      id: initialTask.id,
-                      kind: 'task',
-                      title: initialTask.title,
-                    });
-                    closeSheet();
-                  }}
-                  style={[
-                    styles.btn,
-                    { backgroundColor: theme.colors.accentRedSoft },
+                  key={category.id}
+                  onPress={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      categoryId: category.id,
+                    }))
+                  }
+                  style={({ pressed }) => [
+                    styles.chip,
+                    {
+                      backgroundColor:
+                        draft.categoryId === category.id
+                          ? theme.colors.brand
+                          : theme.colors.surfaceMuted,
+                    },
+                    pressed && styles.chipPressed,
                   ]}
                 >
                   <Text
                     style={[
-                      styles.archiveLabel,
-                      { color: theme.colors.accentRed },
+                      styles.chipLabel,
+                      {
+                        color:
+                          draft.categoryId === category.id
+                            ? theme.colors.textOnTint
+                            : theme.colors.textPrimary,
+                      },
                     ]}
                   >
-                    Archive
+                    {category.label}
                   </Text>
                 </Pressable>
-              ) : null}
+              ))}
+            </View>
+          </ScrollView>
+
+          <DateStepper
+            label="Due date"
+            onChange={(dueDate) =>
+              setDraft((current) => ({ ...current, dueDate }))
+            }
+            presets={getTaskDatePresets()}
+            value={draft.dueDate}
+          />
+
+          <TimeStepper
+            label="Due time"
+            onChange={(dueTime) =>
+              setDraft((current) => ({ ...current, dueTime }))
+            }
+            presets={taskTimePresets}
+            timeFormat={timeFormat}
+            value={draft.dueTime}
+          />
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.optionRow}>
+              {priorities.map((priority) => (
+                <Pressable
+                  key={priority}
+                  onPress={() =>
+                    setDraft((current) => ({ ...current, priority }))
+                  }
+                  style={({ pressed }) => [
+                    styles.chip,
+                    {
+                      backgroundColor:
+                        draft.priority === priority
+                          ? theme.colors.brand
+                          : theme.colors.surfaceMuted,
+                    },
+                    pressed && styles.chipPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipLabel,
+                      {
+                        color:
+                          draft.priority === priority
+                            ? theme.colors.textOnTint
+                            : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {priority}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.optionRow}>
+              {taskRepeatOptions.map((option) => (
+                <Pressable
+                  key={option.label}
+                  onPress={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      repeatRule: option.value,
+                    }))
+                  }
+                  style={({ pressed }) => [
+                    styles.chip,
+                    {
+                      backgroundColor:
+                        draft.repeatRule.type === option.value.type
+                          ? theme.colors.brand
+                          : theme.colors.surfaceMuted,
+                    },
+                    pressed && styles.chipPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipLabel,
+                      {
+                        color:
+                          draft.repeatRule.type === option.value.type
+                            ? theme.colors.textOnTint
+                            : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+
+          {showErrors && errors.form ? (
+            <Text style={[styles.errorText, { color: theme.colors.accentRed }]}>
+              {errors.form}
+            </Text>
+          ) : null}
+
+          <View style={styles.actions}>
+            {initialTask ? (
               <Pressable
-                onPress={closeSheet}
+                onPress={() => {
+                  archiveTask(initialTask.id);
+                  setLastArchivedItem({
+                    id: initialTask.id,
+                    kind: 'task',
+                    title: initialTask.title,
+                  });
+                  closeSheet();
+                }}
                 style={[
                   styles.btn,
-                  { backgroundColor: theme.colors.surfaceMuted },
+                  { backgroundColor: theme.colors.accentRedSoft },
                 ]}
               >
                 <Text
                   style={[
-                    styles.actionLabel,
-                    { color: theme.colors.textPrimary },
+                    styles.archiveLabel,
+                    { color: theme.colors.accentRed },
                   ]}
                 >
-                  Close
+                  Archive
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={handleSave}
-                style={[styles.btn, { backgroundColor: theme.colors.brand }]}
+            ) : null}
+            <Pressable
+              onPress={closeSheet}
+              style={[
+                styles.btn,
+                { backgroundColor: theme.colors.surfaceMuted },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.actionLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
               >
-                <Text
-                  style={[
-                    styles.actionLabel,
-                    { color: theme.colors.textOnTint },
-                  ]}
-                >
-                  {initialTask ? 'Save' : 'Create'}
-                </Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </PanGestureHandler>
+                Close
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleSave}
+              style={[
+                styles.btn,
+                {
+                  opacity: validation.success ? 1 : 0.7,
+                  backgroundColor: theme.colors.brand,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.actionLabel, { color: theme.colors.textOnTint }]}
+              >
+                {initialTask ? 'Save' : 'Create'}
+              </Text>
+            </Pressable>
+          </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -533,6 +438,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h2 },
   input: {
     borderRadius: 18,
+    borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...typography.bodyStrong,
@@ -546,8 +452,6 @@ const styles = StyleSheet.create({
   },
   chipPressed: { opacity: 0.9, transform: [{ scale: 0.97 }] },
   chipLabel: { ...typography.caption },
-  inlineRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
-  inlineInput: { flex: 1 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   btn: {
     flex: 1,
@@ -558,4 +462,5 @@ const styles = StyleSheet.create({
   },
   archiveLabel: { ...typography.bodyStrong },
   actionLabel: { ...typography.bodyStrong },
+  errorText: { ...typography.caption, marginTop: -spacing.sm },
 });

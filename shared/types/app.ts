@@ -8,6 +8,12 @@ export type HydrationEntrySource = 'quick' | 'custom' | 'manual';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskFilter = 'all' | 'completed' | 'overdue' | 'archived' | string;
 export type HabitGoalMode = 'daily' | 'weekly';
+export type TaskSectionId =
+  | 'completed'
+  | 'overdue'
+  | 'today'
+  | 'agenda'
+  | 'later';
 
 export type TaskRepeatRule =
   | { type: 'none' }
@@ -37,6 +43,7 @@ export interface TaskCategoryEntity {
   color: string;
   kind: CategoryKind;
   archived: boolean;
+  archivedAt: string | null;
 }
 
 export interface TaskItem {
@@ -136,10 +143,20 @@ export interface TaskListItemViewModel {
 }
 
 export interface TaskListSection {
-  id: 'completed' | 'overdue' | 'today' | 'upcoming';
+  id: TaskSectionId;
   title: string;
   accentColor: string;
   tasks: TaskListItemViewModel[];
+}
+
+export interface HydrationHistoryListItemViewModel {
+  date: string;
+  label: string;
+  consumedMl: number;
+  targetMl: number;
+  percentage: number;
+  overflowMl: number;
+  isGoalReached: boolean;
 }
 
 export interface HabitCardViewModel {
@@ -151,6 +168,19 @@ export interface HabitCardViewModel {
   progressLabel: string;
   nextReminder: string | null;
   isArchived: boolean;
+}
+
+export interface HabitHistoryEntryViewModel {
+  date: string;
+  label: string;
+  isCompleted: boolean;
+}
+
+export interface HabitDetailViewModel extends HabitCardViewModel {
+  scheduleLabel: string;
+  weeklySummary: string;
+  isCompletedToday: boolean;
+  recentHistory: HabitHistoryEntryViewModel[];
 }
 
 export interface ExportedAppState extends AppState {

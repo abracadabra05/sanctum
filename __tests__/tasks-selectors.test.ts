@@ -2,6 +2,7 @@ import {
   buildTaskSections,
   doesTaskOccurOnDate,
   filterTaskListByQuery,
+  getOutstandingTasksForDate,
   getTaskCompletion,
   getTaskCompletionRecord,
 } from '@/features/tasks/selectors';
@@ -19,6 +20,7 @@ describe('task selectors', () => {
       color: '#E5EAF1',
       kind: 'preset',
       archived: false,
+      archivedAt: null,
     },
   ];
 
@@ -114,6 +116,18 @@ describe('task selectors', () => {
         archived: false,
         archivedAt: null,
       },
+      {
+        id: 't2',
+        title: 'Later task',
+        notes: '',
+        priority: 'low',
+        repeatRule: { type: 'none' },
+        categoryId: 'work',
+        dueAt: '2026-04-25T10:00:00.000Z',
+        completedAt: null,
+        archived: false,
+        archivedAt: null,
+      },
     ];
     const completions: TaskCompletion[] = [];
 
@@ -126,7 +140,7 @@ describe('task selectors', () => {
         timeFormat: '24h',
         today,
       });
-      expect(sections.length).toBeGreaterThan(0);
+      expect(sections.map((section) => section.id)).toEqual(['today', 'later']);
     });
 
     it('filters by completed filter', () => {
@@ -222,6 +236,51 @@ describe('task selectors', () => {
         },
       ];
       expect(getTaskCompletion(tasks, completions, todayKey)).toBe(50);
+    });
+  });
+
+  describe('getOutstandingTasksForDate', () => {
+    it('hides completed tasks from the today selection', () => {
+      const tasks: TaskItem[] = [
+        {
+          id: 't1',
+          title: 'Already done',
+          notes: '',
+          priority: 'medium',
+          repeatRule: { type: 'none' },
+          categoryId: 'work',
+          dueAt: '2026-04-10T08:00:00.000Z',
+          completedAt: null,
+          archived: false,
+          archivedAt: null,
+        },
+        {
+          id: 't2',
+          title: 'Still open',
+          notes: '',
+          priority: 'medium',
+          repeatRule: { type: 'none' },
+          categoryId: 'work',
+          dueAt: '2026-04-10T12:00:00.000Z',
+          completedAt: null,
+          archived: false,
+          archivedAt: null,
+        },
+      ];
+
+      const completions: TaskCompletion[] = [
+        {
+          taskId: 't1',
+          occurrenceDate: todayKey,
+          completedAt: '2026-04-10T08:10:00.000Z',
+        },
+      ];
+
+      expect(
+        getOutstandingTasksForDate(tasks, completions, todayKey).map(
+          (task) => task.id,
+        ),
+      ).toEqual(['t2']);
     });
   });
 });

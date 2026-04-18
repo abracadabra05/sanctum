@@ -27,13 +27,21 @@ interface RadialFabProps {
   longPressDelay?: number;
 }
 
-const BASE_ARC_RADIUS = 72;
-const ARC_RADIUS_STEP = 20;
+const BASE_ARC_RADIUS = 82;
+const ARC_RADIUS_STEP = 28;
 const MAIN_SIZE = 56;
 const ITEM_SIZE = 48;
 const ANIM_DURATION = 240;
 
 function calcArcOffset(index: number, total: number) {
+  if (total === 3) {
+    return [
+      { x: -104, y: -24 },
+      { x: -36, y: -108 },
+      { x: -8, y: -188 },
+    ][index];
+  }
+
   const startAngle = 165;
   const endAngle = 100;
   const angleDeg =

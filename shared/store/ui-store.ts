@@ -14,7 +14,6 @@ export interface ArchivedUndoItem {
 interface UiStore {
   pendingQuickAction: QuickAction | null;
   gestureBlockers: string[];
-  isNavigationGestureBlocked: boolean;
   lastArchivedItem: ArchivedUndoItem | null;
   queueQuickAction: (action: QuickAction) => void;
   consumeQuickAction: () => QuickAction | null;
@@ -26,7 +25,6 @@ interface UiStore {
 export const useUiStore = create<UiStore>((set, get) => ({
   pendingQuickAction: null,
   gestureBlockers: [],
-  isNavigationGestureBlocked: false,
   lastArchivedItem: null,
   queueQuickAction: (action) => {
     set({ pendingQuickAction: action });
@@ -48,7 +46,6 @@ export const useUiStore = create<UiStore>((set, get) => ({
 
       return {
         gestureBlockers,
-        isNavigationGestureBlocked: gestureBlockers.length > 0,
       };
     });
   },

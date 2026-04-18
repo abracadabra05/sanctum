@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
+
+type ArchiveFilter = 'all' | 'tasks' | 'habits' | 'categories';
 
 type ArchiveRow =
   | {
@@ -19,14 +21,31 @@ type ArchiveRow =
       title: string;
       subtitle: string;
       archivedAt: string;
+    }
+  | {
+      id: string;
+      kind: 'category';
+      title: string;
+      subtitle: string;
+      archivedAt: string;
     };
+
+const archiveFilters: { id: ArchiveFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'habits', label: 'Habits' },
+  { id: 'categories', label: 'Categories' },
+];
 
 export default function ArchiveCenterScreen() {
   const theme = useTheme();
   const tasks = useAppStore((state) => state.tasks);
   const habits = useAppStore((state) => state.habits);
+  const categories = useAppStore((state) => state.taskCategories);
   const restoreTask = useAppStore((state) => state.restoreTask);
   const restoreHabit = useAppStore((state) => state.restoreHabit);
+  const restoreTaskCategory = useAppStore((state) => state.restoreTaskCategory);
+  const [activeFilter, setActiveFilter] = useState<ArchiveFilter>('all');
 
   const items = useMemo<ArchiveRow[]>(
     () =>
@@ -49,12 +68,35 @@ export default function ArchiveCenterScreen() {
             subtitle: 'Habit archive',
             archivedAt: habit.archivedAt!,
           })),
+        ...categories
+          .filter((category) => category.archived && category.archivedAt)
+          .map((category) => ({
+            id: category.id,
+            kind: 'category' as const,
+            title: category.label,
+            subtitle: 'Category archive',
+            archivedAt: category.archivedAt!,
+          })),
       ].sort(
         (left, right) =>
           new Date(right.archivedAt).getTime() -
           new Date(left.archivedAt).getTime(),
       ),
-    [habits, tasks],
+    [categories, habits, tasks],
+  );
+
+  const filteredItems = useMemo(
+    () =>
+      items.filter((item) =>
+        activeFilter === 'all'
+          ? true
+          : activeFilter === 'tasks'
+            ? item.kind === 'task'
+            : activeFilter === 'habits'
+              ? item.kind === 'habit'
+              : item.kind === 'category',
+      ),
+    [activeFilter, items],
   );
 
   return (
@@ -76,11 +118,46 @@ export default function ArchiveCenterScreen() {
           Archive center
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Restore archived tasks and habits without losing their local history.
+          Restore archived tasks, habits and categories without losing their
+          local history.
         </Text>
 
-        {items.length ? (
-          items.map((item) => (
+        <View style={styles.filterRow}>
+          {archiveFilters.map((filter) => {
+            const active = filter.id === activeFilter;
+            return (
+              <Pressable
+                key={filter.id}
+                onPress={() => setActiveFilter(filter.id)}
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  {
+                    backgroundColor: active
+                      ? theme.colors.brand
+                      : theme.colors.surfaceMuted,
+                  },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterLabel,
+                    {
+                      color: active
+                        ? theme.colors.textOnTint
+                        : theme.colors.textPrimary,
+                    },
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {filteredItems.length ? (
+          filteredItems.map((item) => (
             <View
               key={`${item.kind}-${item.id}`}
               style={[styles.row, { borderBottomColor: theme.colors.divider }]}
@@ -107,7 +184,12 @@ export default function ArchiveCenterScreen() {
                     return;
                   }
 
-                  restoreHabit(item.id);
+                  if (item.kind === 'habit') {
+                    restoreHabit(item.id);
+                    return;
+                  }
+
+                  restoreTaskCategory(item.id);
                 }}
                 style={({ pressed }) => [
                   styles.restoreButton,
@@ -138,7 +220,7 @@ export default function ArchiveCenterScreen() {
             <Text
               style={[styles.rowMeta, { color: theme.colors.textSecondary }]}
             >
-              Archived tasks and habits will appear here.
+              No items match the current archive filter.
             </Text>
           </View>
         )}
@@ -156,6 +238,17 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.h1 },
   body: { ...typography.body },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  filterChip: {
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  filterLabel: { ...typography.caption, fontSize: 14 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

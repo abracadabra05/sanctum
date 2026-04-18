@@ -7,45 +7,6 @@ import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
-const settingsLinks = [
-  {
-    href: '/settings/water',
-    label: 'Water',
-    summary: 'Goal, quick buttons and hydration defaults',
-    icon: 'water-outline',
-  },
-  {
-    href: '/settings/categories',
-    label: 'Task categories',
-    summary: 'Create, edit and archive custom categories',
-    icon: 'pricetags-outline',
-  },
-  {
-    href: '/settings/notifications',
-    label: 'Notifications',
-    summary: 'Reminder timing and cutoff rules',
-    icon: 'notifications-outline',
-  },
-  {
-    href: '/settings/display',
-    label: 'Display & theme',
-    summary: 'Theme mode, clock format and week start',
-    icon: 'color-palette-outline',
-  },
-  {
-    href: '/settings/archive',
-    label: 'Archive center',
-    summary: 'Restore archived tasks and habits',
-    icon: 'archive-outline',
-  },
-  {
-    href: '/settings/data',
-    label: 'Data',
-    summary: 'Export, import and reset local state',
-    icon: 'download-outline',
-  },
-];
-
 export default function ProfileScreen() {
   const theme = useTheme();
   const preferences = useAppStore((state) => state.preferences);
@@ -223,51 +184,54 @@ export default function ProfileScreen() {
         ]}
       >
         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-          Settings
+          Settings hub
         </Text>
-        {settingsLinks.map((item) => (
-          <Link asChild href={item.href as never} key={item.href}>
-            <Pressable
+        <Text style={[styles.helper, { color: theme.colors.textSecondary }]}>
+          Water, notifications, display, archive recovery and data tools now
+          live behind a single settings route.
+        </Text>
+        <Link asChild href={'/settings' as never}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.settingsRow,
+              { backgroundColor: theme.colors.surfaceMuted },
+              pressed && styles.pressed,
+            ]}
+          >
+            <View
               style={[
-                styles.settingsRow,
-                { backgroundColor: theme.colors.surfaceMuted },
+                styles.iconWrap,
+                { backgroundColor: theme.colors.surfaceFloating },
               ]}
             >
-              <View
-                style={[
-                  styles.iconWrap,
-                  { backgroundColor: theme.colors.surfaceFloating },
-                ]}
-              >
-                <Ionicons
-                  color={theme.colors.brand}
-                  name={item.icon as never}
-                  size={18}
-                />
-              </View>
-              <View style={styles.settingsCopy}>
-                <Text
-                  style={[styles.linkText, { color: theme.colors.textPrimary }]}
-                >
-                  {item.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.linkSummary,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {item.summary}
-                </Text>
-              </View>
               <Ionicons
-                color={theme.colors.textMuted}
-                name="chevron-forward"
+                color={theme.colors.brand}
+                name="settings-outline"
                 size={18}
               />
-            </Pressable>
-          </Link>
-        ))}
+            </View>
+            <View style={styles.settingsCopy}>
+              <Text
+                style={[styles.linkText, { color: theme.colors.textPrimary }]}
+              >
+                Open settings
+              </Text>
+              <Text
+                style={[
+                  styles.linkSummary,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Central hub for release checks, backups and device preferences.
+              </Text>
+            </View>
+            <Ionicons
+              color={theme.colors.textMuted}
+              name="chevron-forward"
+              size={18}
+            />
+          </Pressable>
+        </Link>
       </View>
     </ScreenShell>
   );

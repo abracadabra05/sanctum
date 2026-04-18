@@ -17,6 +17,8 @@ interface TaskCardProps {
   onToggle: (taskId: string, occurrenceDate: string) => void;
   onEdit?: (taskId: string) => void;
   onArchive?: (taskId: string) => void;
+  onSecondaryAction?: (taskId: string) => void;
+  secondaryActionLabel?: string;
 }
 
 const MAX_SWIPE = 140;
@@ -40,7 +42,14 @@ const getContrastText = (hex: string) => {
   return luminance > 0.65 ? '#111827' : '#FFFFFF';
 };
 
-export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
+export function TaskCard({
+  item,
+  onToggle,
+  onEdit,
+  onArchive,
+  onSecondaryAction,
+  secondaryActionLabel,
+}: TaskCardProps) {
   const theme = useTheme();
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const done = item.occurrence.isCompleted;
@@ -178,90 +187,114 @@ export function TaskCard({ item, onToggle, onEdit, onArchive }: TaskCardProps) {
               },
             ]}
           >
-            <Pressable
-              onLongPress={() => onEdit?.(item.task.id)}
-              onPress={() =>
-                onToggle(item.task.id, item.occurrence.occurrenceDate)
-              }
-              style={styles.cardPressable}
-            >
-              <View style={styles.leading}>
-                <View
-                  style={[
-                    styles.checkbox,
-                    {
-                      borderColor: done
-                        ? theme.colors.brand
-                        : theme.colors.border,
-                      backgroundColor: done
-                        ? theme.colors.brand
-                        : theme.colors.surface,
-                    },
-                  ]}
-                >
-                  {done ? (
-                    <Ionicons
-                      color={theme.colors.textOnTint}
-                      name="checkmark"
-                      size={18}
-                    />
-                  ) : null}
-                </View>
-              </View>
-              <View style={styles.content}>
-                <Text
-                  style={[
-                    styles.title,
-                    {
-                      color: done
-                        ? theme.colors.textSecondary
-                        : theme.colors.textPrimary,
-                      textDecorationLine: done ? 'line-through' : 'none',
-                    },
-                  ]}
-                >
-                  {item.task.title}
-                </Text>
-                {item.task.notes ? (
-                  <Text
+            <View style={styles.cardContent}>
+              <Pressable
+                onLongPress={() => onEdit?.(item.task.id)}
+                onPress={() =>
+                  onToggle(item.task.id, item.occurrence.occurrenceDate)
+                }
+                style={styles.cardPressable}
+              >
+                <View style={styles.leading}>
+                  <View
                     style={[
-                      styles.notes,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {item.task.notes}
-                  </Text>
-                ) : null}
-                <View style={styles.metaRow}>
-                  <Text
-                    style={[
-                      styles.badge,
+                      styles.checkbox,
                       {
-                        backgroundColor: item.category.color,
-                        color: categoryTextColor,
+                        borderColor: done
+                          ? theme.colors.brand
+                          : theme.colors.border,
+                        backgroundColor: done
+                          ? theme.colors.brand
+                          : theme.colors.surface,
                       },
                     ]}
                   >
-                    {item.category.label.toUpperCase()}
-                  </Text>
+                    {done ? (
+                      <Ionicons
+                        color={theme.colors.textOnTint}
+                        name="checkmark"
+                        size={18}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+                <View style={styles.content}>
                   <Text
                     style={[
-                      styles.time,
+                      styles.title,
                       {
                         color: done
-                          ? theme.colors.textMuted
-                          : theme.colors.textSecondary,
+                          ? theme.colors.textSecondary
+                          : theme.colors.textPrimary,
+                        textDecorationLine: done ? 'line-through' : 'none',
                       },
                     ]}
                   >
-                    {done ? 'Done' : item.occurrence.displayTime}
+                    {item.task.title}
                   </Text>
-                  <Text style={[styles.priority, { color: priorityTextColor }]}>
-                    {item.task.priority.toUpperCase()}
-                  </Text>
+                  {item.task.notes ? (
+                    <Text
+                      style={[
+                        styles.notes,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {item.task.notes}
+                    </Text>
+                  ) : null}
+                  <View style={styles.metaRow}>
+                    <Text
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor: item.category.color,
+                          color: categoryTextColor,
+                        },
+                      ]}
+                    >
+                      {item.category.label.toUpperCase()}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.time,
+                        {
+                          color: done
+                            ? theme.colors.textMuted
+                            : theme.colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {done ? 'Done' : item.occurrence.displayTime}
+                    </Text>
+                    <Text
+                      style={[styles.priority, { color: priorityTextColor }]}
+                    >
+                      {item.task.priority.toUpperCase()}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </Pressable>
+              </Pressable>
+              {secondaryActionLabel && onSecondaryAction ? (
+                <View style={styles.secondaryRow}>
+                  <Pressable
+                    onPress={() => onSecondaryAction(item.task.id)}
+                    style={[
+                      styles.secondaryButton,
+                      { backgroundColor: theme.colors.surfaceActive },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.secondaryLabel,
+                        { color: theme.colors.brand },
+                      ]}
+                    >
+                      {secondaryActionLabel}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
           </View>
         </Animated.View>
       </PanGestureHandler>
@@ -296,6 +329,9 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: radii.card,
+  },
+  cardContent: {
+    gap: spacing.xs,
   },
   cardPressable: {
     flexDirection: 'row',
@@ -346,5 +382,21 @@ const styles = StyleSheet.create({
   priority: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  secondaryRow: {
+    alignItems: 'flex-end',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  secondaryButton: {
+    minHeight: 36,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  secondaryLabel: {
+    ...typography.caption,
+    fontSize: 13,
   },
 });

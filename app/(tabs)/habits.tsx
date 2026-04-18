@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 
-import { getHabitCards } from '@/features/habits/selectors';
+import { getHabitCards, getHabitDetail } from '@/features/habits/selectors';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
@@ -20,6 +20,7 @@ import type { HabitItem } from '@/shared/types/app';
 import { CreateHabitSheet } from '@/shared/ui/create-habit-sheet';
 import { EmptyState } from '@/shared/ui/empty-state';
 import { HabitCard } from '@/shared/ui/habit-card';
+import { HabitDetailSheet } from '@/shared/ui/habit-detail-sheet';
 import type { RadialFabItem } from '@/shared/ui/radial-fab';
 import { RadialFab } from '@/shared/ui/radial-fab';
 import { ScreenShell } from '@/shared/ui/screen-shell';
@@ -33,8 +34,6 @@ if (
 
 export default function HabitsScreen() {
   const theme = useTheme();
-  const isReady = useAppStore((state) => state.isReady);
-  const hydrate = useAppStore((state) => state.hydrate);
   const habits = useAppStore((state) => state.habits);
   const preferences = useAppStore((state) => state.preferences);
   const markHabitComplete = useAppStore((state) => state.markHabitComplete);
@@ -42,16 +41,11 @@ export default function HabitsScreen() {
   const [showArchived, setShowArchived] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<HabitItem | null>(null);
-
-  useEffect(() => {
-    if (!isReady) {
-      void hydrate();
-    }
-  }, [hydrate, isReady]);
+  const [detailHabitId, setDetailHabitId] = useState<string | null>(null);
 
   useEffect(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }, [showArchived, sheetOpen]);
+  }, [detailHabitId, showArchived, sheetOpen]);
 
   const openCreate = useCallback(() => {
     setEditingHabit(null);
@@ -105,6 +99,19 @@ export default function HabitsScreen() {
     [preferences.timeFormat, visibleHabits],
   );
 
+  const selectedHabit = useMemo(
+    () => habits.find((habit) => habit.id === detailHabitId) ?? null,
+    [detailHabitId, habits],
+  );
+
+  const detail = useMemo(
+    () =>
+      selectedHabit
+        ? getHabitDetail(selectedHabit, preferences.timeFormat)
+        : null,
+    [preferences.timeFormat, selectedHabit],
+  );
+
   return (
     <>
       <ScreenShell
@@ -142,11 +149,10 @@ export default function HabitsScreen() {
             Consistency
           </Text>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            Keep your rituals alive
+            Keep rituals steady
           </Text>
           <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-            Habits hold streaks, schedules and reminders without mixing into
-            one-off tasks.
+            Open a habit for details, then mark today complete in one step.
           </Text>
         </View>
 
@@ -197,7 +203,7 @@ export default function HabitsScreen() {
                   onPress={() =>
                     showArchived
                       ? restoreHabit(habit.id)
-                      : markHabitComplete(habit.id, toDateKey(new Date()))
+                      : setDetailHabitId(habit.id)
                   }
                 />
               </View>
@@ -238,6 +244,27 @@ export default function HabitsScreen() {
         }}
         initialHabit={editingHabit}
       />
+
+      <HabitDetailSheet
+        visible={Boolean(detailHabitId)}
+        habit={detail}
+        onClose={() => setDetailHabitId(null)}
+        onEdit={() => {
+          if (!detailHabitId) {
+            return;
+          }
+
+          openEdit(detailHabitId);
+          setDetailHabitId(null);
+        }}
+        onToggleToday={() => {
+          if (!detailHabitId) {
+            return;
+          }
+
+          markHabitComplete(detailHabitId, toDateKey(new Date()));
+        }}
+      />
     </>
   );
 }
@@ -260,11 +287,12 @@ const styles = StyleSheet.create({
   summary: {
     gap: spacing.sm,
     borderRadius: radii.card,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
   },
   eyebrow: { ...typography.eyebrow },
   title: { ...typography.h1 },
-  body: { ...typography.body },
+  body: { ...typography.caption, fontSize: 14, lineHeight: 20 },
   segmentRow: { flexDirection: 'row', gap: spacing.sm },
   segment: {
     flex: 1,

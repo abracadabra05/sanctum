@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   LayoutAnimation,
+  type LayoutChangeEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -14,9 +16,14 @@ import {
 
 import {
   buildTaskSections,
-  getTaskCompletionRecord,
+  getTaskCompletion,
 } from '@/features/tasks/selectors';
-import { toDateKey } from '@/shared/lib/date';
+import {
+  addDays,
+  extractLocalTime,
+  formatDateTimeLabel,
+  toDateKey,
+} from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
@@ -57,6 +64,7 @@ function TasksHeader({ onOpenSearch }: { onOpenSearch: () => void }) {
 const buildArchivedItem = (
   task: TaskItem,
   categoryLabel: string,
+  timeFormat: '12h' | '24h',
 ): TaskListItemViewModel => ({
   task,
   category: {
@@ -65,11 +73,14 @@ const buildArchivedItem = (
     color: '#E8EDF4',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
   occurrence: {
     occurrenceDate: toDateKey(new Date(task.dueAt)),
     displayTime: task.archivedAt
-      ? `Archived ${new Date(task.archivedAt).toLocaleDateString()}`
+      ? `Archived ${formatDateTimeLabel(task.archivedAt, timeFormat, {
+          includeWeekday: true,
+        })}`
       : 'Archived',
     isCompleted: Boolean(task.completedAt),
   },
@@ -80,9 +91,6 @@ const buildArchivedItem = (
 
 export default function TasksScreen() {
   const theme = useTheme();
-  const isReady = useAppStore((state) => state.isReady);
-  const hydrate = useAppStore((state) => state.hydrate);
-  const rolloverDayIfNeeded = useAppStore((state) => state.rolloverDayIfNeeded);
   const tasks = useAppStore((state) => state.tasks);
   const taskCompletions = useAppStore((state) => state.taskCompletions);
   const taskCategories = useAppStore((state) => state.taskCategories);
@@ -93,6 +101,7 @@ export default function TasksScreen() {
   );
   const archiveTask = useAppStore((state) => state.archiveTask);
   const restoreTask = useAppStore((state) => state.restoreTask);
+  const updateTask = useAppStore((state) => state.updateTask);
   const preferences = useAppStore((state) => state.preferences);
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const setLastArchivedItem = useUiStore((state) => state.setLastArchivedItem);
@@ -100,16 +109,13 @@ export default function TasksScreen() {
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    if (!isReady) {
-      void hydrate();
-    }
-  }, [hydrate, isReady]);
-
-  useEffect(() => {
-    rolloverDayIfNeeded();
-  }, [rolloverDayIfNeeded]);
+  const [searchIncludeArchived, setSearchIncludeArchived] = useState(false);
+  const [filterLayouts, setFilterLayouts] = useState<
+    Record<string, { x: number; width: number }>
+  >({});
+  const pillTranslateX = useRef(new Animated.Value(0)).current;
+  const pillWidth = useRef(new Animated.Value(0)).current;
+  const pillOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -119,6 +125,54 @@ export default function TasksScreen() {
     () => taskCategories.filter((item) => !item.archived),
     [taskCategories],
   );
+
+  const filterItems = useMemo(
+    () => [
+      'all',
+      'overdue',
+      'completed',
+      'archived',
+      ...categories.map((item) => item.id),
+    ],
+    [categories],
+  );
+
+  useEffect(() => {
+    const layout = filterLayouts[filter];
+    if (!layout) {
+      return;
+    }
+
+    Animated.parallel([
+      Animated.spring(pillTranslateX, {
+        toValue: layout.x,
+        damping: 18,
+        stiffness: 180,
+        useNativeDriver: false,
+      }),
+      Animated.spring(pillWidth, {
+        toValue: layout.width,
+        damping: 18,
+        stiffness: 180,
+        useNativeDriver: false,
+      }),
+      Animated.timing(pillOpacity, {
+        toValue: 1,
+        duration: 160,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [filter, filterLayouts, pillOpacity, pillTranslateX, pillWidth]);
+
+  const handleFilterLayout =
+    (item: string) =>
+    ({ nativeEvent }: LayoutChangeEvent) => {
+      const { x, width } = nativeEvent.layout;
+      setFilterLayouts((current) => ({
+        ...current,
+        [item]: { x, width },
+      }));
+    };
 
   const openCreate = useCallback(() => {
     setEditingTask(null);
@@ -162,6 +216,18 @@ export default function TasksScreen() {
     [categories, filter, preferences.timeFormat, taskCompletions, tasks],
   );
 
+  const searchSections = useMemo(
+    () =>
+      buildTaskSections({
+        tasks,
+        filter: 'all',
+        completions: taskCompletions,
+        categories,
+        timeFormat: preferences.timeFormat,
+      }),
+    [categories, preferences.timeFormat, taskCompletions, tasks],
+  );
+
   const archivedItems = useMemo(
     () =>
       tasks
@@ -177,19 +243,19 @@ export default function TasksScreen() {
         })
         .map((task) => {
           const categoryLabel =
-            categories.find((item) => item.id === task.categoryId)?.label ??
+            taskCategories.find((item) => item.id === task.categoryId)?.label ??
             'Uncategorized';
-          return buildArchivedItem(task, categoryLabel);
+          return buildArchivedItem(task, categoryLabel, preferences.timeFormat);
         }),
-    [categories, tasks],
+    [preferences.timeFormat, taskCategories, tasks],
   );
 
   const overlayDataset = useMemo(
-    () =>
-      filter === 'archived'
-        ? archivedItems
-        : sections.flatMap((section) => section.tasks),
-    [archivedItems, filter, sections],
+    () => [
+      ...searchSections.flatMap((section) => section.tasks),
+      ...(searchIncludeArchived ? archivedItems : []),
+    ],
+    [archivedItems, searchIncludeArchived, searchSections],
   );
 
   const overlayResults = useMemo(() => {
@@ -201,19 +267,10 @@ export default function TasksScreen() {
     return overlayDataset.filter((item) => item.searchText?.includes(query));
   }, [overlayDataset, searchQuery]);
 
-  const focusCompletion = useMemo(() => {
-    const todayTasks = tasks.filter((task) => !task.archived);
-    if (!todayTasks.length) {
-      return 0;
-    }
-
-    const todayKey = toDateKey(new Date());
-    const completedCount = todayTasks.filter((task) =>
-      Boolean(getTaskCompletionRecord(task.id, todayKey, taskCompletions)),
-    ).length;
-
-    return Math.round((completedCount / todayTasks.length) * 100);
-  }, [taskCompletions, tasks]);
+  const focusCompletion = useMemo(
+    () => getTaskCompletion(tasks, taskCompletions),
+    [taskCompletions, tasks],
+  );
 
   const archiveMode = filter === 'archived';
 
@@ -234,9 +291,25 @@ export default function TasksScreen() {
     [archiveTask, setLastArchivedItem, tasks],
   );
 
+  const handleQuickReschedule = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) {
+        return;
+      }
+
+      updateTask(taskId, {
+        dueDate: toDateKey(addDays(new Date(), 1)),
+        dueTime: extractLocalTime(task.dueAt),
+      });
+    },
+    [tasks, updateTask],
+  );
+
   const closeSearchOverlay = useCallback(() => {
     setSearchOpen(false);
     setSearchQuery('');
+    setSearchIncludeArchived(false);
   }, []);
 
   return (
@@ -268,14 +341,14 @@ export default function TasksScreen() {
           <Text
             style={[styles.focusBody, { color: theme.colors.textSecondary }]}
           >
-            Search, sort and complete your day without visual clutter.
+            Search any task, move overdue work, keep this week visible.
           </Text>
           <ProgressRing
             centerCaption="Done"
             centerLabel={`${focusCompletion}%`}
             percentage={focusCompletion}
-            size={170}
-            thickness={18}
+            size={148}
+            thickness={16}
             variant="focus"
           />
         </View>
@@ -287,14 +360,31 @@ export default function TasksScreen() {
           onTouchStart={() => setGestureBlock('task-filter-scroll', true)}
           showsHorizontalScrollIndicator={false}
         >
-          <View style={styles.filterRow}>
-            {[
-              'all',
-              'overdue',
-              'completed',
-              'archived',
-              ...categories.map((item) => item.id),
-            ].map((item) => {
+          <View
+            style={[
+              styles.filterTrack,
+              {
+                backgroundColor: theme.colors.surfaceFloating,
+                shadowColor: theme.shadows.card.shadowColor,
+                shadowOffset: theme.shadows.card.shadowOffset,
+                shadowOpacity: theme.shadows.card.shadowOpacity,
+                shadowRadius: theme.shadows.card.shadowRadius,
+                elevation: theme.shadows.card.elevation,
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.filterPill,
+                {
+                  backgroundColor: theme.colors.brand,
+                  opacity: pillOpacity,
+                  transform: [{ translateX: pillTranslateX }],
+                  width: pillWidth,
+                },
+              ]}
+            />
+            {filterItems.map((item) => {
               const active = item === filter;
               const label =
                 categories.find((category) => category.id === item)?.label ??
@@ -302,14 +392,10 @@ export default function TasksScreen() {
               return (
                 <Pressable
                   key={item}
+                  onLayout={handleFilterLayout(item)}
                   onPress={() => setTaskFilter(item)}
                   style={({ pressed }) => [
                     styles.filterChip,
-                    {
-                      backgroundColor: active
-                        ? theme.colors.brand
-                        : theme.colors.surfaceMuted,
-                    },
                     pressed && styles.filterChipPressed,
                   ]}
                 >
@@ -450,7 +536,15 @@ export default function TasksScreen() {
                     item={item}
                     onArchive={handleArchiveTask}
                     onEdit={openEdit}
+                    onSecondaryAction={
+                      section.id === 'overdue'
+                        ? handleQuickReschedule
+                        : undefined
+                    }
                     onToggle={completeTaskOccurrence}
+                    secondaryActionLabel={
+                      section.id === 'overdue' ? 'Move to tomorrow' : undefined
+                    }
                   />
                 ))}
               </View>
@@ -466,14 +560,23 @@ export default function TasksScreen() {
       </ScreenShell>
 
       <TaskSearchOverlay
+        includeArchived={searchIncludeArchived}
         onChangeQuery={setSearchQuery}
         onClose={closeSearchOverlay}
         onSelect={(item) => {
           closeSearchOverlay();
           openEdit(item.task.id);
         }}
+        onToggleIncludeArchived={() =>
+          setSearchIncludeArchived((current) => !current)
+        }
         query={searchQuery}
         results={overlayResults}
+        scopeLabel={
+          searchIncludeArchived
+            ? 'All tasks, including archived'
+            : 'All active tasks'
+        }
         visible={searchOpen}
       />
 
@@ -489,7 +592,7 @@ export default function TasksScreen() {
             },
             {
               id: 'search',
-              label: 'Search',
+              label: 'Global search',
               icon: { name: 'search-outline', type: 'ionicon' },
               onPress: () => setSearchOpen(true),
             },
@@ -530,28 +633,48 @@ const styles = StyleSheet.create({
   },
   focusCard: {
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
     borderRadius: radii.card,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: 28,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
   },
-  focusEyebrow: { ...typography.eyebrow },
-  focusTitle: { ...typography.h1, fontSize: 30 },
+  focusEyebrow: { ...typography.eyebrow, fontSize: 12 },
+  focusTitle: { ...typography.h1, fontSize: 26, lineHeight: 32 },
   focusBody: {
-    ...typography.body,
+    ...typography.caption,
+    fontSize: 14,
+    lineHeight: 20,
     textAlign: 'center',
   },
-  filterRow: { flexDirection: 'row', gap: spacing.sm },
-  filterChip: {
+  filterTrack: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     borderRadius: radii.pill,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    padding: 4,
+  },
+  filterPill: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    bottom: 4,
+    borderRadius: radii.pill,
+  },
+  filterChip: {
+    zIndex: 1,
+    minHeight: 42,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   filterChipPressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
   },
-  filterLabel: { ...typography.bodyStrong },
+  filterLabel: { ...typography.caption, fontSize: 14 },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',

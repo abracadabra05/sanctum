@@ -3,11 +3,16 @@ import {
   addMinutes,
   combineDateAndTime,
   extractLocalTime,
+  formatDateTimeLabel,
   fromDateKey,
   isAfterClockTime,
   isSameDay,
+  isValidDateKey,
+  isValidTimeValue,
+  shiftDateKey,
   startOfDay,
   toDateKey,
+  tryCombineDateAndTime,
 } from '@/shared/lib/date';
 
 describe('date utilities', () => {
@@ -46,6 +51,18 @@ describe('date utilities', () => {
       expect(result.getFullYear()).toBe(2026);
       expect(result.getMonth()).toBe(2); // 0-indexed
       expect(result.getDate()).toBe(15);
+    });
+  });
+
+  describe('validation helpers', () => {
+    it('accepts only valid date keys', () => {
+      expect(isValidDateKey('2026-03-15')).toBe(true);
+      expect(isValidDateKey('2026-02-31')).toBe(false);
+    });
+
+    it('accepts only valid time values', () => {
+      expect(isValidTimeValue('09:30')).toBe(true);
+      expect(isValidTimeValue('24:15')).toBe(false);
     });
   });
 
@@ -94,6 +111,11 @@ describe('date utilities', () => {
       expect(date.getHours()).toBe(14);
       expect(date.getMinutes()).toBe(30);
     });
+
+    it('returns null from safe combiner when values are invalid', () => {
+      expect(tryCombineDateAndTime('2026-02-31', '14:30')).toBeNull();
+      expect(tryCombineDateAndTime('2026-03-15', '25:30')).toBeNull();
+    });
   });
 
   describe('extractLocalTime', () => {
@@ -112,6 +134,17 @@ describe('date utilities', () => {
     it('returns false when time is before cutoff', () => {
       const date = new Date(2026, 3, 10, 8, 0, 0);
       expect(isAfterClockTime(date, '10:00')).toBe(false);
+    });
+  });
+
+  describe('derived formatting helpers', () => {
+    it('shifts a valid date key by days', () => {
+      expect(shiftDateKey('2026-03-15', 2)).toBe('2026-03-17');
+    });
+
+    it('formats a date-time label', () => {
+      const iso = new Date(2026, 3, 10, 14, 30, 0).toISOString();
+      expect(formatDateTimeLabel(iso, '24h')).toContain('14:30');
     });
   });
 });

@@ -60,13 +60,21 @@ const tasks: TaskItem[] = [
 ];
 
 const categories: TaskCategoryEntity[] = [
-  { id: 'work', label: 'Work', color: '#EEE', kind: 'preset', archived: false },
+  {
+    id: 'work',
+    label: 'Work',
+    color: '#EEE',
+    kind: 'preset',
+    archived: false,
+    archivedAt: null,
+  },
   {
     id: 'health',
     label: 'Health',
     color: '#EEE',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
   {
     id: 'personal',
@@ -74,6 +82,7 @@ const categories: TaskCategoryEntity[] = [
     color: '#EEE',
     kind: 'preset',
     archived: false,
+    archivedAt: null,
   },
 ];
 
@@ -98,7 +107,7 @@ describe('task selectors', () => {
     expect(sections.map((section) => section.id)).toEqual([
       'overdue',
       'today',
-      'upcoming',
+      'agenda',
       'completed',
     ]);
   });

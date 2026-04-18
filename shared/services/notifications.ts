@@ -1,14 +1,10 @@
 import Constants from 'expo-constants';
 
 import {
-  addDays,
-  addMinutes,
-  combineDateAndTime,
-  fromDateKey,
-  isAfterClockTime,
-  toDateKey,
-} from '@/shared/lib/date';
-import type { AppState, HabitItem } from '@/shared/types/app';
+  buildHabitReminderDates,
+  buildWaterReminderDates,
+} from '@/shared/services/notification-schedule';
+import type { AppState } from '@/shared/types/app';
 
 let notificationsModulePromise: Promise<
   typeof import('expo-notifications')
@@ -99,16 +95,11 @@ export const syncWaterNotifications = async (state: AppState) => {
     return;
   }
 
-  const interval = state.preferences.waterReminderIntervalMinutes ?? 90;
-  const cutoff = state.preferences.waterReminderCutoffTime ?? '22:00';
-  const now = new Date();
-
-  for (let step = 1; step <= 6; step += 1) {
-    const triggerDate = addMinutes(now, interval * step);
-    if (isAfterClockTime(triggerDate, cutoff)) {
-      break;
-    }
-
+  for (const triggerDate of buildWaterReminderDates(
+    new Date(),
+    state.preferences.waterReminderIntervalMinutes ?? 90,
+    state.preferences.waterReminderCutoffTime ?? '22:00',
+  )) {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Hydration check-in',
@@ -123,13 +114,6 @@ export const syncWaterNotifications = async (state: AppState) => {
   }
 };
 
-const habitShouldRunOnDate = (habit: HabitItem, dateKey: string) => {
-  const date = fromDateKey(dateKey);
-  return habit.schedule.days.includes(
-    date.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6,
-  );
-};
-
 export const syncHabitNotifications = async (state: AppState) => {
   if (!state.preferences.notificationsEnabled || isExpoGo) {
     return;
@@ -142,23 +126,10 @@ export const syncHabitNotifications = async (state: AppState) => {
     return;
   }
 
-  const tomorrowKey = toDateKey(addDays(new Date(), 1));
-  const todayKey = toDateKey(new Date());
-  const keys = [todayKey, tomorrowKey];
-
   for (const habit of state.habits.filter(
     (item) => !item.archived && item.reminder.enabled && item.reminder.time,
   )) {
-    for (const dateKey of keys) {
-      if (!habitShouldRunOnDate(habit, dateKey)) {
-        continue;
-      }
-
-      const date = new Date(combineDateAndTime(dateKey, habit.reminder.time!));
-      if (date.getTime() <= Date.now()) {
-        continue;
-      }
-
+    for (const date of buildHabitReminderDates(habit, new Date())) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: habit.name,

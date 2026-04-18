@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,8 +12,12 @@ import {
 
 import { getHabitCards } from '@/features/habits/selectors';
 import { getHydrationProgress } from '@/features/hydration/selectors';
-import { getTaskCompletionRecord } from '@/features/tasks/selectors';
-import { toDateKey } from '@/shared/lib/date';
+import { getOutstandingTasksForDate } from '@/features/tasks/selectors';
+import {
+  extractLocalTime,
+  formatTimeLabel,
+  toDateKey,
+} from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
@@ -71,9 +74,6 @@ function DashboardHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
 
 export default function DashboardScreen() {
   const theme = useTheme();
-  const isReady = useAppStore((state) => state.isReady);
-  const hydrate = useAppStore((state) => state.hydrate);
-  const rolloverDayIfNeeded = useAppStore((state) => state.rolloverDayIfNeeded);
   const hydrationToday = useAppStore((state) => state.hydrationToday);
   const preferences = useAppStore((state) => state.preferences);
   const tasks = useAppStore((state) => state.tasks);
@@ -81,10 +81,6 @@ export default function DashboardScreen() {
   const categories = useAppStore((state) => state.taskCategories);
   const habits = useAppStore((state) => state.habits);
   const addWater = useAppStore((state) => state.addWater);
-  const setDailyWaterTarget = useAppStore((state) => state.setDailyWaterTarget);
-  const setQuickWaterAmounts = useAppStore(
-    (state) => state.setQuickWaterAmounts,
-  );
   const completeTaskOccurrence = useAppStore(
     (state) => state.completeTaskOccurrence,
   );
@@ -94,26 +90,9 @@ export default function DashboardScreen() {
   const [customWater, setCustomWater] = useState(
     String(preferences.quickWaterAmounts[0] ?? 180),
   );
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [createHabitOpen, setCreateHabitOpen] = useState(false);
-  const [targetDraft, setTargetDraft] = useState(
-    String(preferences.dailyWaterTargetMl),
-  );
-  const [quickDraft, setQuickDraft] = useState(
-    preferences.quickWaterAmounts.join(','),
-  );
-
-  useEffect(() => {
-    if (!isReady) {
-      void hydrate();
-    }
-  }, [hydrate, isReady]);
-
-  useEffect(() => {
-    rolloverDayIfNeeded();
-  }, [rolloverDayIfNeeded]);
 
   const hydrationProgress = useMemo(
     () =>
@@ -127,9 +106,8 @@ export default function DashboardScreen() {
   const todayKey = toDateKey(new Date());
   const todayTasks = useMemo(
     () =>
-      tasks
-        .filter((task) => !task.archived)
-        .filter((task) => toDateKey(new Date(task.dueAt)) === todayKey)
+      getOutstandingTasksForDate(tasks, taskCompletions, todayKey)
+        .sort((left, right) => left.dueAt.localeCompare(right.dueAt))
         .map((task) => ({
           task,
           category:
@@ -137,14 +115,11 @@ export default function DashboardScreen() {
             categories[0],
           occurrence: {
             occurrenceDate: todayKey,
-            displayTime: new Date(task.dueAt).toLocaleTimeString([], {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: preferences.timeFormat === '12h',
-            }),
-            isCompleted: Boolean(
-              getTaskCompletionRecord(task.id, todayKey, taskCompletions),
+            displayTime: formatTimeLabel(
+              extractLocalTime(task.dueAt),
+              preferences.timeFormat,
             ),
+            isCompleted: false,
           },
         }))
         .slice(0, 3),
@@ -168,7 +143,7 @@ export default function DashboardScreen() {
         <View>
           <SectionHeading
             actionLabel={`${(hydrationProgress.consumedMl / 1000).toFixed(1)}L / ${(preferences.dailyWaterTargetMl / 1000).toFixed(1)}L`}
-            onActionPress={() => setSettingsOpen(true)}
+            onActionPress={() => router.navigate('/settings/water')}
             eyebrow="Hydration"
             title="Stay Fluid"
           />
@@ -187,19 +162,55 @@ export default function DashboardScreen() {
             },
           ]}
         >
-          <ProgressRing
-            centerCaption={
-              hydrationProgress.isGoalReached ? 'Goal reached' : undefined
-            }
-            centerLabel={
-              hydrationProgress.isGoalReached
-                ? undefined
-                : `${hydrationProgress.percentage}%`
-            }
-            percentage={hydrationProgress.percentage}
-            successState={hydrationProgress.isGoalReached}
-            variant="water"
-          />
+          <View style={styles.waterTopRow}>
+            <ProgressRing
+              centerCaption={
+                hydrationProgress.isGoalReached ? 'Goal reached' : undefined
+              }
+              centerLabel={
+                hydrationProgress.isGoalReached
+                  ? undefined
+                  : `${hydrationProgress.percentage}%`
+              }
+              percentage={hydrationProgress.percentage}
+              successState={hydrationProgress.isGoalReached}
+              variant="water"
+            />
+            <Pressable
+              onPress={() => router.navigate('/settings/water')}
+              style={[
+                styles.waterControl,
+                { backgroundColor: theme.colors.surfaceMuted },
+              ]}
+            >
+              <View
+                style={[
+                  styles.waterControlIcon,
+                  { backgroundColor: theme.colors.brandSoft },
+                ]}
+              >
+                <Ionicons
+                  color={theme.colors.brand}
+                  name="water-outline"
+                  size={18}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.waterControlLabel,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Water
+              </Text>
+              <Ionicons
+                color={theme.colors.iconNeutral}
+                name="settings-outline"
+                size={18}
+              />
+            </Pressable>
+          </View>
+
           <Text
             style={[styles.waterSummary, { color: theme.colors.textSecondary }]}
           >
@@ -207,6 +218,7 @@ export default function DashboardScreen() {
               ? `+${hydrationProgress.overflowMl} ml above goal`
               : `${Math.max(0, preferences.dailyWaterTargetMl - hydrationProgress.consumedMl)} ml left today`}
           </Text>
+
           <View style={styles.buttonRow}>
             {preferences.quickWaterAmounts.slice(0, 2).map((amount, index) => (
               <Pressable
@@ -240,6 +252,7 @@ export default function DashboardScreen() {
               </Pressable>
             ))}
           </View>
+
           <View style={styles.customRow}>
             <Text
               style={[styles.customHint, { color: theme.colors.textSecondary }]}
@@ -275,48 +288,6 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
           </View>
-          <Pressable
-            onPress={() => setSettingsOpen(true)}
-            style={styles.secondaryLink}
-          >
-            <Text
-              style={[styles.secondaryLinkLabel, { color: theme.colors.brand }]}
-            >
-              Hydration settings
-            </Text>
-          </Pressable>
-          <View style={styles.entryList}>
-            {hydrationToday.entries.slice(0, 4).map((entry) => (
-              <View
-                key={entry.id}
-                style={[
-                  styles.entryRow,
-                  { borderBottomColor: theme.colors.divider },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.entryAmount,
-                    { color: theme.colors.textPrimary },
-                  ]}
-                >
-                  +{entry.amountMl} ml
-                </Text>
-                <Text
-                  style={[
-                    styles.entryMeta,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {new Date(entry.timestamp).toLocaleTimeString([], {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: preferences.timeFormat === '12h',
-                  })}
-                </Text>
-              </View>
-            ))}
-          </View>
         </View>
 
         <View>
@@ -338,8 +309,8 @@ export default function DashboardScreen() {
           ) : (
             <EmptyState
               icon="tasks"
-              title="No tasks for today"
-              description="Tap the + button on the Tasks screen to add your first task."
+              title="All done"
+              description="Nothing active is left for today."
             />
           )}
         </View>
@@ -430,94 +401,6 @@ export default function DashboardScreen() {
         onOpenData={() => router.navigate('/settings/data')}
         onOpenProfile={() => router.navigate('/profile')}
       />
-
-      <Modal animationType="slide" transparent visible={settingsOpen}>
-        <View
-          style={[
-            styles.modalOverlay,
-            { backgroundColor: theme.colors.overlay },
-          ]}
-        >
-          <View
-            style={[
-              styles.sheet,
-              { backgroundColor: theme.colors.surfaceElevated },
-            ]}
-          >
-            <Text
-              style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}
-            >
-              Hydration preferences
-            </Text>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-              Daily target (ml)
-            </Text>
-            <TextInput
-              keyboardType="number-pad"
-              onChangeText={setTargetDraft}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.input,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              value={targetDraft}
-            />
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-              Quick amounts (comma separated)
-            </Text>
-            <TextInput
-              onChangeText={setQuickDraft}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.input,
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-              value={quickDraft}
-            />
-            <View style={styles.sheetActions}>
-              <Pressable
-                onPress={() => setSettingsOpen(false)}
-                style={[
-                  styles.cta,
-                  { backgroundColor: theme.colors.surfaceMuted },
-                ]}
-              >
-                <Text
-                  style={[styles.ctaLabel, { color: theme.colors.textPrimary }]}
-                >
-                  Close
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  const parsedTarget =
-                    Number(targetDraft) || preferences.dailyWaterTargetMl;
-                  const quickAmounts = quickDraft
-                    .split(',')
-                    .map((item) => Number(item.trim()))
-                    .filter((item) => !Number.isNaN(item) && item > 0);
-                  setDailyWaterTarget(parsedTarget);
-                  if (quickAmounts.length > 0) {
-                    setQuickWaterAmounts(quickAmounts);
-                  }
-                  setSettingsOpen(false);
-                }}
-                style={[styles.cta, { backgroundColor: theme.colors.brand }]}
-              >
-                <Text
-                  style={[styles.ctaLabel, { color: theme.colors.surface }]}
-                >
-                  Save
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </>
   );
 }
@@ -554,19 +437,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroCard: {
-    alignItems: 'center',
     gap: spacing.md,
-    padding: spacing.xl,
+    padding: spacing.lg,
     borderRadius: radii.card,
   },
+  waterTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  waterControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  waterControlIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waterControlLabel: { ...typography.bodyStrong, fontSize: 15 },
   waterSummary: {
     ...typography.body,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   buttonRow: { width: '100%', flexDirection: 'row', gap: spacing.md },
   cta: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 52,
     borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
@@ -596,43 +500,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   addSmallLabel: { ...typography.bodyStrong },
-  secondaryLink: { alignSelf: 'flex-start' },
-  secondaryLinkLabel: {
-    ...typography.caption,
-    textTransform: 'uppercase',
-  },
-  entryList: { width: '100%', gap: spacing.xs },
-  entryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingBottom: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  entryAmount: { ...typography.bodyStrong },
-  entryMeta: { ...typography.caption },
   stack: { gap: spacing.md },
   habitRow: { flexDirection: 'row', gap: spacing.md },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: radii.card,
-    borderTopRightRadius: radii.card,
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  sheetTitle: { ...typography.h2 },
-  label: {
-    ...typography.caption,
-    textTransform: 'uppercase',
-  },
-  input: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    ...typography.bodyStrong,
-  },
-  sheetActions: { flexDirection: 'row', gap: spacing.md },
 });

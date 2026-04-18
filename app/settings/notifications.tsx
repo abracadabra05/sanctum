@@ -1,18 +1,18 @@
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
+import { TimeStepper } from '@/shared/ui/time-stepper';
 
 const intervalOptions = [60, 90, 120, 180];
 const cutoffPresets = ['20:00', '21:00', '22:00'];
 
-const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 export default function NotificationsSettingsScreen() {
   const theme = useTheme();
   const preferences = useAppStore((state) => state.preferences);
+  const timeFormat = useAppStore((state) => state.preferences.timeFormat);
   const setNotificationPreferences = useAppStore(
     (state) => state.setNotificationPreferences,
   );
@@ -23,8 +23,6 @@ export default function NotificationsSettingsScreen() {
   const [cutoff, setCutoff] = useState(
     preferences.waterReminderCutoffTime ?? '22:00',
   );
-
-  const cutoffValid = useMemo(() => timePattern.test(cutoff), [cutoff]);
 
   return (
     <ScreenShell>
@@ -135,67 +133,15 @@ export default function NotificationsSettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            Stop reminders after
-          </Text>
-          <TextInput
-            editable={enabled}
-            onChangeText={setCutoff}
-            placeholder="22:00"
-            placeholderTextColor={theme.colors.textMuted}
-            style={[
-              styles.input,
-              {
-                opacity: enabled ? 1 : 0.45,
-                backgroundColor: theme.colors.input,
-                color: theme.colors.textPrimary,
-                borderColor: cutoffValid
-                  ? 'transparent'
-                  : theme.colors.accentRed,
-              },
-            ]}
+          <TimeStepper
+            disabled={!enabled}
+            label="Stop reminders after"
+            minuteStep={30}
+            onChange={setCutoff}
+            presets={cutoffPresets}
+            timeFormat={timeFormat}
             value={cutoff}
           />
-          <View style={styles.segmentRow}>
-            {cutoffPresets.map((item) => {
-              const active = cutoff === item;
-              return (
-                <Pressable
-                  key={item}
-                  disabled={!enabled}
-                  onPress={() => setCutoff(item)}
-                  style={({ pressed }) => [
-                    styles.segment,
-                    {
-                      opacity: enabled ? 1 : 0.45,
-                      backgroundColor: active
-                        ? theme.colors.brand
-                        : theme.colors.surfaceMuted,
-                    },
-                    enabled && pressed && styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentLabel,
-                      {
-                        color: active
-                          ? theme.colors.textOnTint
-                          : theme.colors.textPrimary,
-                      },
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {!cutoffValid ? (
-            <Text style={[styles.errorText, { color: theme.colors.accentRed }]}>
-              Use the 24-hour format, for example 22:00.
-            </Text>
-          ) : null}
         </View>
 
         <View
@@ -218,7 +164,6 @@ export default function NotificationsSettingsScreen() {
         </View>
 
         <Pressable
-          disabled={!cutoffValid}
           onPress={async () => {
             await setNotificationPreferences({
               enabled,
@@ -229,7 +174,6 @@ export default function NotificationsSettingsScreen() {
           style={[
             styles.button,
             {
-              opacity: cutoffValid ? 1 : 0.5,
               backgroundColor: theme.colors.brand,
               shadowColor: theme.shadows.button.shadowColor,
               shadowOffset: theme.shadows.button.shadowOffset,
@@ -292,14 +236,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentLabel: { ...typography.bodyStrong, fontSize: 15 },
-  input: {
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    ...typography.bodyStrong,
-  },
-  errorText: { ...typography.caption },
   summaryBox: {
     borderRadius: 22,
     paddingHorizontal: spacing.md,

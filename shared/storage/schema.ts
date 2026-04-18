@@ -58,6 +58,7 @@ export const taskCategorySchema = z.object({
   color: z.string(),
   kind: z.enum(['preset', 'custom']),
   archived: z.boolean(),
+  archivedAt: z.string().nullable().default(null),
 });
 
 export const habitReminderSchema = z.object({

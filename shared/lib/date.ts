@@ -1,6 +1,7 @@
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+type LocaleInput = Intl.LocalesArgument;
 
 export const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const TIME_VALUE_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -70,16 +71,21 @@ export const getOrderedWeekdays = (weekStartsOn: Weekday) =>
 export const formatWeekdayLabel = (
   weekday: Weekday,
   style: 'short' | 'long' = 'short',
+  locale?: LocaleInput,
 ) => {
   const referenceDate = new Date(2026, 0, 4 + weekday);
-  return referenceDate.toLocaleDateString([], { weekday: style });
+  return referenceDate.toLocaleDateString(locale, { weekday: style });
 };
 
-export const formatTimeLabel = (value: string, format: '12h' | '24h') => {
+export const formatTimeLabel = (
+  value: string,
+  format: '12h' | '24h',
+  locale?: LocaleInput,
+) => {
   const [hours, minutes] = value.split(':').map(Number);
   const date = new Date();
   date.setHours(hours, minutes, 0, 0);
-  return date.toLocaleTimeString([], {
+  return date.toLocaleTimeString(locale, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: format === '12h',
@@ -88,9 +94,13 @@ export const formatTimeLabel = (value: string, format: '12h' | '24h') => {
 
 export const formatDateLabel = (
   value: Date,
-  options: { includeWeekday?: boolean; includeYear?: boolean } = {},
+  options: {
+    includeWeekday?: boolean;
+    includeYear?: boolean;
+    locale?: LocaleInput;
+  } = {},
 ) =>
-  value.toLocaleDateString([], {
+  value.toLocaleDateString(options.locale, {
     weekday: options.includeWeekday ? 'short' : undefined,
     month: 'short',
     day: 'numeric',
@@ -99,7 +109,11 @@ export const formatDateLabel = (
 
 export const formatDateKeyLabel = (
   value: string,
-  options: { includeWeekday?: boolean; includeYear?: boolean } = {},
+  options: {
+    includeWeekday?: boolean;
+    includeYear?: boolean;
+    locale?: LocaleInput;
+  } = {},
 ) =>
   isValidDateKey(value) ? formatDateLabel(fromDateKey(value), options) : value;
 
@@ -107,27 +121,39 @@ export const formatOccurrenceLabel = (
   occurrenceDate: string,
   time: string,
   format: '12h' | '24h',
-  todayKey = toDateKey(new Date()),
+  options: {
+    todayKey?: string;
+    todayLabel?: string;
+    locale?: LocaleInput;
+  } = {},
 ) => {
+  const todayKey = options.todayKey ?? toDateKey(new Date());
   const prefix =
     occurrenceDate === todayKey
-      ? 'Today'
-      : formatDateKeyLabel(occurrenceDate, { includeWeekday: true });
+      ? (options.todayLabel ?? 'Today')
+      : formatDateKeyLabel(occurrenceDate, {
+          includeWeekday: true,
+          locale: options.locale,
+        });
 
-  return `${prefix} • ${formatTimeLabel(time, format)}`;
+  return `${prefix} • ${formatTimeLabel(time, format, options.locale)}`;
 };
 
 export const formatDateTimeLabel = (
   value: string,
   format: '12h' | '24h',
-  options: { includeWeekday?: boolean; includeYear?: boolean } = {},
+  options: {
+    includeWeekday?: boolean;
+    includeYear?: boolean;
+    locale?: LocaleInput;
+  } = {},
 ) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
-  return `${formatDateLabel(date, options)} • ${formatTimeLabel(extractLocalTime(value), format)}`;
+  return `${formatDateLabel(date, options)} • ${formatTimeLabel(extractLocalTime(value), format, options.locale)}`;
 };
 
 export const parseTimeValue = (value: string) => {

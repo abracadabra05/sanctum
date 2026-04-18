@@ -1,51 +1,56 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
-const links = [
-  {
-    href: '/settings/water',
-    label: 'Water',
-    summary: 'Goal, quick buttons and hydration defaults',
-    icon: 'water-outline',
-  },
-  {
-    href: '/settings/categories',
-    label: 'Task categories',
-    summary: 'Create, edit and archive custom categories',
-    icon: 'pricetags-outline',
-  },
-  {
-    href: '/settings/notifications',
-    label: 'Notifications',
-    summary: 'Water reminder timing and cutoff rules',
-    icon: 'notifications-outline',
-  },
-  {
-    href: '/settings/display',
-    label: 'Display & theme',
-    summary: 'Theme mode, time format and week start',
-    icon: 'color-palette-outline',
-  },
-  {
-    href: '/settings/archive',
-    label: 'Archive center',
-    summary: 'Restore archived tasks and habits',
-    icon: 'archive-outline',
-  },
-  {
-    href: '/settings/data',
-    label: 'Data',
-    summary: 'Export, import and reset local data',
-    icon: 'download-outline',
-  },
-];
-
 export default function SettingsIndexScreen() {
   const theme = useTheme();
+  const { t } = useI18n();
+  const links = useMemo(
+    () => [
+      {
+        href: '/settings/water',
+        label: t('settings.index.water.label'),
+        summary: t('settings.index.water.summary'),
+        icon: 'water-outline',
+      },
+      {
+        href: '/settings/categories',
+        label: t('settings.index.categories.label'),
+        summary: t('settings.index.categories.summary'),
+        icon: 'pricetags-outline',
+      },
+      {
+        href: '/settings/notifications',
+        label: t('settings.index.notifications.label'),
+        summary: t('settings.index.notifications.summary'),
+        icon: 'notifications-outline',
+      },
+      {
+        href: '/settings/display',
+        label: t('settings.index.display.label'),
+        summary: t('settings.index.display.summary'),
+        icon: 'color-palette-outline',
+      },
+      {
+        href: '/settings/archive',
+        label: t('settings.index.archive.label'),
+        summary: t('settings.index.archive.summary'),
+        icon: 'archive-outline',
+      },
+      {
+        href: '/settings/data',
+        label: t('settings.index.data.label'),
+        summary: t('settings.index.data.summary'),
+        icon: 'download-outline',
+      },
+    ],
+    [t],
+  );
 
   return (
     <ScreenShell>
@@ -63,10 +68,10 @@ export default function SettingsIndexScreen() {
         ]}
       >
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Settings
+          {t('settings.index.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          App-level controls live here. Data stays local unless you export it.
+          {t('settings.index.body')}
         </Text>
         <View style={styles.list}>
           {links.map((link) => (

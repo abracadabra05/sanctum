@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { getTaskCategoryLabel, useI18n } from '@/shared/i18n';
+import { formatDateTimeLabel } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
@@ -30,22 +32,24 @@ type ArchiveRow =
       archivedAt: string;
     };
 
-const archiveFilters: { id: ArchiveFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'tasks', label: 'Tasks' },
-  { id: 'habits', label: 'Habits' },
-  { id: 'categories', label: 'Categories' },
-];
-
 export default function ArchiveCenterScreen() {
   const theme = useTheme();
+  const { language, locale, t } = useI18n();
   const tasks = useAppStore((state) => state.tasks);
   const habits = useAppStore((state) => state.habits);
   const categories = useAppStore((state) => state.taskCategories);
+  const timeFormat = useAppStore((state) => state.preferences.timeFormat);
   const restoreTask = useAppStore((state) => state.restoreTask);
   const restoreHabit = useAppStore((state) => state.restoreHabit);
   const restoreTaskCategory = useAppStore((state) => state.restoreTaskCategory);
   const [activeFilter, setActiveFilter] = useState<ArchiveFilter>('all');
+
+  const archiveFilters: { id: ArchiveFilter; label: string }[] = [
+    { id: 'all', label: t('settings.archive.filter.all') },
+    { id: 'tasks', label: t('settings.archive.filter.tasks') },
+    { id: 'habits', label: t('settings.archive.filter.habits') },
+    { id: 'categories', label: t('settings.archive.filter.categories') },
+  ];
 
   const items = useMemo<ArchiveRow[]>(
     () =>
@@ -56,7 +60,7 @@ export default function ArchiveCenterScreen() {
             id: task.id,
             kind: 'task' as const,
             title: task.title,
-            subtitle: 'Task archive',
+            subtitle: t('settings.archive.subtitle.task'),
             archivedAt: task.archivedAt!,
           })),
         ...habits
@@ -65,7 +69,7 @@ export default function ArchiveCenterScreen() {
             id: habit.id,
             kind: 'habit' as const,
             title: habit.name,
-            subtitle: 'Habit archive',
+            subtitle: t('settings.archive.subtitle.habit'),
             archivedAt: habit.archivedAt!,
           })),
         ...categories
@@ -73,8 +77,8 @@ export default function ArchiveCenterScreen() {
           .map((category) => ({
             id: category.id,
             kind: 'category' as const,
-            title: category.label,
-            subtitle: 'Category archive',
+            title: getTaskCategoryLabel(category, language),
+            subtitle: t('settings.archive.subtitle.category'),
             archivedAt: category.archivedAt!,
           })),
       ].sort(
@@ -82,7 +86,7 @@ export default function ArchiveCenterScreen() {
           new Date(right.archivedAt).getTime() -
           new Date(left.archivedAt).getTime(),
       ),
-    [categories, habits, tasks],
+    [categories, habits, language, t, tasks],
   );
 
   const filteredItems = useMemo(
@@ -115,11 +119,10 @@ export default function ArchiveCenterScreen() {
         ]}
       >
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Archive center
+          {t('settings.archive.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Restore archived tasks, habits and categories without losing their
-          local history.
+          {t('settings.archive.body')}
         </Text>
 
         <View style={styles.filterRow}>
@@ -174,7 +177,12 @@ export default function ArchiveCenterScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {item.subtitle} • {new Date(item.archivedAt).toLocaleString()}
+                  {item.subtitle} •{' '}
+                  {formatDateTimeLabel(item.archivedAt, timeFormat, {
+                    includeWeekday: true,
+                    includeYear: true,
+                    locale,
+                  })}
                 </Text>
               </View>
               <Pressable
@@ -200,7 +208,7 @@ export default function ArchiveCenterScreen() {
                 <Text
                   style={[styles.restoreLabel, { color: theme.colors.brand }]}
                 >
-                  Restore
+                  {t('common.restore')}
                 </Text>
               </Pressable>
             </View>
@@ -215,12 +223,12 @@ export default function ArchiveCenterScreen() {
             <Text
               style={[styles.rowTitle, { color: theme.colors.textPrimary }]}
             >
-              Archive is empty
+              {t('settings.archive.emptyTitle')}
             </Text>
             <Text
               style={[styles.rowMeta, { color: theme.colors.textSecondary }]}
             >
-              No items match the current archive filter.
+              {t('settings.archive.emptyBody')}
             </Text>
           </View>
         )}

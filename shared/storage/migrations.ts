@@ -1,3 +1,7 @@
+import {
+  DEFAULT_APP_LANGUAGE,
+  normalizeAppLanguage,
+} from '@/shared/i18n/messages';
 import { combineDateAndTime, toDateKey } from '@/shared/lib/date';
 import { appStateSchema } from '@/shared/storage/schema';
 import { PRESET_TASK_CATEGORIES, createSeedState } from '@/shared/storage/seed';
@@ -69,6 +73,9 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
       preferences: {
         ...seeded.preferences,
         ...(legacy.preferences ?? {}),
+        language: normalizeAppLanguage(
+          legacy.preferences?.language ?? seeded.preferences.language,
+        ),
         themeMode: legacy.preferences?.themeMode ?? 'system',
         hasSeenAppTour: legacy.preferences?.hasSeenAppTour ?? false,
       },
@@ -179,6 +186,9 @@ export const migrateToLatestAppState = (raw: unknown): AppState => {
     })),
     preferences: {
       displayName: legacy.preferences.profileName ?? 'Astra',
+      language: normalizeAppLanguage(
+        legacy.preferences.language ?? DEFAULT_APP_LANGUAGE,
+      ),
       dailyWaterTargetMl: legacy.hydration.targetMl ?? 2500,
       quickWaterAmounts: [250, 500, 750],
       dayStartsAt: '00:00',

@@ -86,6 +86,7 @@ export const habitItemSchema = z.object({
 
 export const userPreferencesSchema = z.object({
   displayName: z.string(),
+  language: z.enum(['en', 'ru']).default('en'),
   dailyWaterTargetMl: z.number().int().positive(),
   quickWaterAmounts: z.array(z.number().int().positive()).min(1),
   dayStartsAt: z.string(),

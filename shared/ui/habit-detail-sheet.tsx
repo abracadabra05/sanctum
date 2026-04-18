@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { HabitDetailViewModel } from '@/shared/types/app';
@@ -28,6 +29,7 @@ export function HabitDetailSheet({
   onToggleToday,
 }: HabitDetailSheetProps) {
   const theme = useTheme();
+  const { t } = useI18n();
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export function HabitDetailSheet({
           ]}
         >
           <View style={[styles.hero, { backgroundColor: habit.accentColor }]}>
-            <Text style={styles.heroEyebrow}>Habit detail</Text>
+            <Text style={styles.heroEyebrow}>{t('habitDetail.eyebrow')}</Text>
             <Text style={styles.heroTitle}>{habit.name}</Text>
             <Text style={styles.heroBody}>
               {habit.progressLabel} • {habit.weeklySummary}
@@ -73,7 +75,7 @@ export function HabitDetailSheet({
             <Text
               style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
             >
-              Schedule
+              {t('habitDetail.schedule')}
             </Text>
             <Text
               style={[
@@ -81,7 +83,7 @@ export function HabitDetailSheet({
                 { color: theme.colors.textSecondary },
               ]}
             >
-              {habit.scheduleLabel || 'No scheduled days'}
+              {habit.scheduleLabel || t('habitDetail.noSchedule')}
             </Text>
             {habit.nextReminder ? (
               <Text
@@ -90,7 +92,7 @@ export function HabitDetailSheet({
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Reminder {habit.nextReminder}
+                {t('habit.reminder', { time: habit.nextReminder })}
               </Text>
             ) : null}
           </View>
@@ -99,7 +101,7 @@ export function HabitDetailSheet({
             <Text
               style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
             >
-              Recent history
+              {t('habitDetail.recentHistory')}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.historyRow}>
@@ -133,7 +135,9 @@ export function HabitDetailSheet({
                         { color: theme.colors.textPrimary },
                       ]}
                     >
-                      {entry.isCompleted ? 'Done' : 'Open'}
+                      {entry.isCompleted
+                        ? t('habit.history.done')
+                        : t('habit.history.open')}
                     </Text>
                   </View>
                 ))}
@@ -155,7 +159,7 @@ export function HabitDetailSheet({
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Close
+                {t('common.close')}
               </Text>
             </Pressable>
             <Pressable
@@ -166,7 +170,7 @@ export function HabitDetailSheet({
               ]}
             >
               <Text style={[styles.buttonLabel, { color: theme.colors.brand }]}>
-                Edit
+                {t('common.edit')}
               </Text>
             </Pressable>
             <Pressable
@@ -176,7 +180,9 @@ export function HabitDetailSheet({
               <Text
                 style={[styles.buttonLabel, { color: theme.colors.textOnTint }]}
               >
-                {habit.isCompletedToday ? 'Undo today' : 'Mark done'}
+                {habit.isCompletedToday
+                  ? t('habitDetail.toggleUndo')
+                  : t('habitDetail.toggleDone')}
               </Text>
             </Pressable>
           </View>

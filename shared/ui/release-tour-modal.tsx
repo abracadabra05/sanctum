@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
 import { spacing, typography, useTheme } from '@/shared/theme';
@@ -12,32 +13,9 @@ interface ReleaseTourModalProps {
   onFinish: () => void;
 }
 
-const steps = [
-  {
-    id: 'tasks',
-    title: 'Create your first task',
-    body: 'Open the task builder, add a title, choose the date and time, then save it. The guide starts with a blank list on purpose.',
-    hint: 'As soon as the first task is created, the guide moves to habits.',
-    icon: 'checkmark-circle-outline',
-  },
-  {
-    id: 'habits',
-    title: 'Build a habit from scratch',
-    body: 'Now create your first habit: pick a name, set the schedule, choose a reminder if needed, and save it.',
-    hint: 'After the first habit is saved, the guide will wrap up.',
-    icon: 'leaf-outline',
-  },
-  {
-    id: 'ready',
-    title: 'Everything is ready',
-    body: 'Dashboard keeps water, tasks and habits together, while Profile lets you replay this guide and open the full settings hub later.',
-    hint: null,
-    icon: 'dashboard',
-  },
-] as const;
-
 export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
   const theme = useTheme();
+  const { t } = useI18n();
   const router = useRouter();
   const queueQuickAction = useUiStore((state) => state.queueQuickAction);
   const taskCount = useAppStore(
@@ -103,6 +81,34 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
       setStepIndex(2);
     }
   }, [habitCount, stepIndex, taskCount, visible]);
+
+  const steps = useMemo(
+    () =>
+      [
+        {
+          id: 'tasks',
+          title: t('releaseTour.tasks.title'),
+          body: t('releaseTour.tasks.body'),
+          hint: t('releaseTour.tasks.hint'),
+          icon: 'checkmark-circle-outline',
+        },
+        {
+          id: 'habits',
+          title: t('releaseTour.habits.title'),
+          body: t('releaseTour.habits.body'),
+          hint: t('releaseTour.habits.hint'),
+          icon: 'leaf-outline',
+        },
+        {
+          id: 'ready',
+          title: t('releaseTour.ready.title'),
+          body: t('releaseTour.ready.body'),
+          hint: null,
+          icon: 'dashboard',
+        },
+      ] as const,
+    [t],
+  );
 
   const step = steps[stepIndex];
   const isPracticeStep = step.id === 'tasks' || step.id === 'habits';
@@ -176,13 +182,13 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
             <Text
               style={[styles.skipLabel, { color: theme.colors.textSecondary }]}
             >
-              Later
+              {t('releaseTour.later')}
             </Text>
           </Pressable>
         </View>
 
         <Text style={[styles.eyebrow, { color: theme.colors.brand }]}>
-          Interactive guide
+          {t('releaseTour.eyebrow')}
         </Text>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
           {step.title}
@@ -230,7 +236,7 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Next
+                {t('common.next')}
               </Text>
             </Pressable>
           ) : null}
@@ -246,10 +252,10 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
               style={[styles.primaryLabel, { color: theme.colors.surface }]}
             >
               {step.id === 'tasks'
-                ? 'Open task builder'
+                ? t('releaseTour.tasks.action')
                 : step.id === 'habits'
-                  ? 'Open habit builder'
-                  : 'Finish'}
+                  ? t('releaseTour.habits.action')
+                  : t('releaseTour.ready.action')}
             </Text>
           </Pressable>
         </View>

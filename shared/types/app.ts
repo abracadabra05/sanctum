@@ -2,6 +2,7 @@ import type { Weekday } from '@/shared/lib/date';
 import type { ThemeMode } from '@/shared/theme';
 
 export type SchemaVersion = '1';
+export type AppLanguage = 'en' | 'ru';
 export type TimeFormat = '12h' | '24h';
 export type CategoryKind = 'preset' | 'custom';
 export type HydrationEntrySource = 'quick' | 'custom' | 'manual';
@@ -96,6 +97,7 @@ export interface NotificationPreferences {
 
 export interface UserPreferences {
   displayName: string;
+  language: AppLanguage;
   dailyWaterTargetMl: number;
   quickWaterAmounts: number[];
   dayStartsAt: string;

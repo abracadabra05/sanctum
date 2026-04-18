@@ -12,11 +12,16 @@ import {
 import { PanGestureHandler } from 'react-native-gesture-handler';
 
 import {
+  getTaskCategoryLabel,
+  getTaskPriorityLabel,
+  useI18n,
+} from '@/shared/i18n';
+import {
   buildTaskDraftFromTask,
   createTaskDraft,
   getDraftErrors,
   getTaskDatePresets,
-  taskRepeatOptions,
+  getTaskRepeatOptions,
   taskTimePresets,
   validateTaskDraft,
 } from '@/shared/lib/planning-forms';
@@ -44,6 +49,7 @@ export function CreateTaskSheet({
   initialTask,
 }: CreateTaskSheetProps) {
   const theme = useTheme();
+  const { language, t } = useI18n();
   const taskCategories = useAppStore((state) => state.taskCategories);
   const createTask = useAppStore((state) => state.createTask);
   const updateTask = useAppStore((state) => state.updateTask);
@@ -71,10 +77,17 @@ export function CreateTaskSheet({
     dragBlockKey: 'task-sheet-drag',
   });
 
-  const validation = useMemo(() => validateTaskDraft(draft), [draft]);
+  const validation = useMemo(
+    () => validateTaskDraft(draft, language),
+    [draft, language],
+  );
   const errors = validation.success
     ? {}
     : getDraftErrors(validation.error.issues);
+  const repeatOptions = useMemo(
+    () => getTaskRepeatOptions(language),
+    [language],
+  );
 
   useEffect(() => {
     if (!visible) {
@@ -167,13 +180,15 @@ export function CreateTaskSheet({
           </PanGestureHandler>
 
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            {initialTask ? 'Edit task' : 'Create task'}
+            {initialTask
+              ? t('createTask.titleEdit')
+              : t('createTask.titleCreate')}
           </Text>
           <TextInput
             onChangeText={(value) =>
               setDraft((current) => ({ ...current, title: value }))
             }
-            placeholder="Task title"
+            placeholder={t('createTask.placeholderTitle')}
             placeholderTextColor={theme.colors.textMuted}
             style={[
               styles.input,
@@ -199,7 +214,7 @@ export function CreateTaskSheet({
             onChangeText={(value) =>
               setDraft((current) => ({ ...current, notes: value }))
             }
-            placeholder="Notes"
+            placeholder={t('createTask.placeholderNotes')}
             placeholderTextColor={theme.colors.textMuted}
             style={[
               styles.input,
@@ -245,7 +260,7 @@ export function CreateTaskSheet({
                       },
                     ]}
                   >
-                    {category.label}
+                    {getTaskCategoryLabel(category, language)}
                   </Text>
                 </Pressable>
               ))}
@@ -253,16 +268,16 @@ export function CreateTaskSheet({
           </ScrollView>
 
           <DateStepper
-            label="Due date"
+            label={t('createTask.dueDate')}
             onChange={(dueDate) =>
               setDraft((current) => ({ ...current, dueDate }))
             }
-            presets={getTaskDatePresets()}
+            presets={getTaskDatePresets(language)}
             value={draft.dueDate}
           />
 
           <TimeStepper
-            label="Due time"
+            label={t('createTask.dueTime')}
             onChange={(dueTime) =>
               setDraft((current) => ({ ...current, dueTime }))
             }
@@ -301,7 +316,7 @@ export function CreateTaskSheet({
                       },
                     ]}
                   >
-                    {priority}
+                    {getTaskPriorityLabel(language, priority)}
                   </Text>
                 </Pressable>
               ))}
@@ -310,7 +325,7 @@ export function CreateTaskSheet({
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.optionRow}>
-              {taskRepeatOptions.map((option) => (
+              {repeatOptions.map((option) => (
                 <Pressable
                   key={option.label}
                   onPress={() =>
@@ -377,7 +392,7 @@ export function CreateTaskSheet({
                     { color: theme.colors.accentRed },
                   ]}
                 >
-                  Archive
+                  {t('common.archive')}
                 </Text>
               </Pressable>
             ) : null}
@@ -394,7 +409,7 @@ export function CreateTaskSheet({
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Close
+                {t('common.close')}
               </Text>
             </Pressable>
             <Pressable
@@ -410,7 +425,7 @@ export function CreateTaskSheet({
               <Text
                 style={[styles.actionLabel, { color: theme.colors.textOnTint }]}
               >
-                {initialTask ? 'Save' : 'Create'}
+                {initialTask ? t('common.save') : t('common.create')}
               </Text>
             </Pressable>
           </View>

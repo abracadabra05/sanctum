@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { formatDateKeyLabel, shiftDateKey } from '@/shared/lib/date';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 
@@ -22,6 +23,7 @@ export function DateStepper({
   presets = [],
 }: DateStepperProps) {
   const theme = useTheme();
+  const { locale, t } = useI18n();
 
   return (
     <View style={styles.section}>
@@ -37,7 +39,7 @@ export function DateStepper({
           ]}
         >
           <Text style={[styles.stepLabel, { color: theme.colors.textPrimary }]}>
-            -1d
+            -1{t('stepper.dayShort')}
           </Text>
         </Pressable>
         <View
@@ -47,6 +49,7 @@ export function DateStepper({
             {formatDateKeyLabel(value, {
               includeWeekday: true,
               includeYear: true,
+              locale,
             })}
           </Text>
         </View>
@@ -58,7 +61,7 @@ export function DateStepper({
           ]}
         >
           <Text style={[styles.stepLabel, { color: theme.colors.textPrimary }]}>
-            +1d
+            +1{t('stepper.dayShort')}
           </Text>
         </Pressable>
       </View>

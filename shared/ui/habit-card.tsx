@@ -1,6 +1,7 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { HabitCardViewModel } from '@/shared/types/app';
 
@@ -54,6 +55,7 @@ const blendHex = (baseHex: string, mixHex: string, mixWeight: number) => {
 
 export function HabitCard({ habit, onPress, onLongPress }: HabitCardProps) {
   const theme = useTheme();
+  const { t } = useI18n();
   const surfaceColor =
     theme.mode === 'dark'
       ? blendHex(habit.accentColor, theme.colors.surfaceStrong, 0.82)
@@ -110,7 +112,7 @@ export function HabitCard({ habit, onPress, onLongPress }: HabitCardProps) {
             {habit.streakDays}
           </Text>
           <Text style={[styles.daysLabel, { color: secondaryColor }]}>
-            DAYS
+            {t('habit.streak.days')}
           </Text>
           <Text numberOfLines={2} style={[styles.name, { color: titleColor }]}>
             {habit.name}
@@ -126,7 +128,7 @@ export function HabitCard({ habit, onPress, onLongPress }: HabitCardProps) {
               numberOfLines={1}
               style={[styles.reminder, { color: secondaryColor }]}
             >
-              Reminder {habit.nextReminder}
+              {t('habit.reminder', { time: habit.nextReminder })}
             </Text>
           ) : null}
         </View>

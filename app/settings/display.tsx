@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import {
+  getLanguageLabel,
+  getLocale,
+  getThemeModeHint,
+  getThemeModeLabel,
+  getTimeFormatLabel,
+  useI18n,
+} from '@/shared/i18n';
+import { formatWeekdayLabel } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import {
   radii,
@@ -11,36 +20,46 @@ import {
 } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
-const themeOptions: { value: ThemeMode; label: string; hint: string }[] = [
-  { value: 'system', label: 'System', hint: 'Follow device appearance' },
-  { value: 'light', label: 'Light', hint: 'Bright surfaces and soft contrast' },
-  { value: 'dark', label: 'Dark', hint: 'Deeper surfaces for night use' },
-];
-
-const weekdays = [
-  { value: 1 as const, label: 'Mon' },
-  { value: 2 as const, label: 'Tue' },
-  { value: 3 as const, label: 'Wed' },
-  { value: 4 as const, label: 'Thu' },
-  { value: 5 as const, label: 'Fri' },
-  { value: 6 as const, label: 'Sat' },
-  { value: 0 as const, label: 'Sun' },
-];
-
 export default function DisplaySettingsScreen() {
   const theme = useTheme();
+  const { t } = useI18n();
   const preferences = useAppStore((state) => state.preferences);
   const setDisplayPreferences = useAppStore(
     (state) => state.setDisplayPreferences,
   );
   const [name, setName] = useState(preferences.displayName);
+  const [language, setLanguage] = useState(preferences.language);
   const [timeFormat, setTimeFormat] = useState(preferences.timeFormat);
   const [weekStartsOn, setWeekStartsOn] = useState(preferences.weekStartsOn);
   const [themeMode, setThemeMode] = useState<ThemeMode>(preferences.themeMode);
+  const previewLocale = getLocale(language);
+
+  const themeOptions = useMemo(
+    () =>
+      (['system', 'light', 'dark'] as const).map((value) => ({
+        value,
+        label: getThemeModeLabel(language, value),
+        hint: getThemeModeHint(language, value),
+      })),
+    [language],
+  );
+
+  const weekdays = useMemo(
+    () =>
+      [1, 2, 3, 4, 5, 6, 0].map((value) => ({
+        value: value as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+        label: formatWeekdayLabel(
+          value as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+          'short',
+          previewLocale,
+        ),
+      })),
+    [previewLocale],
+  );
 
   const currentThemeSummary = useMemo(
     () => themeOptions.find((item) => item.value === themeMode)?.hint ?? '',
-    [themeMode],
+    [themeMode, themeOptions],
   );
 
   return (
@@ -59,19 +78,19 @@ export default function DisplaySettingsScreen() {
         ]}
       >
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Display & theme
+          {t('settings.display.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Keep names and time settings readable at a glance.
+          {t('settings.display.body')}
         </Text>
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            Display name
+            {t('settings.display.displayName')}
           </Text>
           <TextInput
             onChangeText={setName}
-            placeholder="Your name"
+            placeholder={t('settings.display.displayNamePlaceholder')}
             placeholderTextColor={theme.colors.textMuted}
             style={[
               styles.input,
@@ -86,7 +105,46 @@ export default function DisplaySettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            Theme
+            {t('settings.display.language')}
+          </Text>
+          <View style={styles.segmentRow}>
+            {(['en', 'ru'] as const).map((option) => {
+              const active = language === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => setLanguage(option)}
+                  style={({ pressed }) => [
+                    styles.segment,
+                    {
+                      backgroundColor: active
+                        ? theme.colors.brand
+                        : theme.colors.surfaceMuted,
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.segmentLabel,
+                      {
+                        color: active
+                          ? theme.colors.textOnTint
+                          : theme.colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {getLanguageLabel(language, option)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+            {t('settings.display.theme')}
           </Text>
           <View style={styles.optionStack}>
             {themeOptions.map((option) => {
@@ -147,7 +205,7 @@ export default function DisplaySettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            Time format
+            {t('settings.display.timeFormat')}
           </Text>
           <View style={styles.segmentRow}>
             {(['12h', '24h'] as const).map((item) => {
@@ -176,7 +234,7 @@ export default function DisplaySettingsScreen() {
                       },
                     ]}
                   >
-                    {item === '12h' ? '12-hour' : '24-hour'}
+                    {getTimeFormatLabel(language, item)}
                   </Text>
                 </Pressable>
               );
@@ -186,7 +244,7 @@ export default function DisplaySettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            First day of week
+            {t('settings.display.weekStart')}
           </Text>
           <View style={styles.chipWrap}>
             {weekdays.map((day) => {
@@ -232,7 +290,7 @@ export default function DisplaySettingsScreen() {
           <Text
             style={[styles.summaryTitle, { color: theme.colors.textPrimary }]}
           >
-            Current mode
+            {t('settings.display.currentMode')}
           </Text>
           <Text
             style={[styles.summaryBody, { color: theme.colors.textSecondary }]}
@@ -245,6 +303,7 @@ export default function DisplaySettingsScreen() {
           onPress={() =>
             setDisplayPreferences({
               displayName: name.trim() || preferences.displayName,
+              language,
               timeFormat,
               weekStartsOn,
               themeMode,
@@ -265,7 +324,7 @@ export default function DisplaySettingsScreen() {
           <Text
             style={[styles.buttonLabel, { color: theme.colors.textOnTint }]}
           >
-            Save display settings
+            {t('settings.display.save')}
           </Text>
         </Pressable>
       </View>

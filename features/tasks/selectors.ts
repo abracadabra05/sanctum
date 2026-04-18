@@ -1,4 +1,11 @@
 import {
+  DEFAULT_APP_LANGUAGE,
+  getTaskCategoryLabel,
+  getTaskPriorityLabel,
+  translate,
+  type AppLanguage,
+} from '@/shared/i18n/messages';
+import {
   compareDateKeys,
   extractLocalTime,
   formatOccurrenceLabel,
@@ -135,14 +142,21 @@ const buildViewModel = (
   categories: TaskCategoryEntity[],
   timeFormat: TimeFormat,
   todayKey: string,
+  language: AppLanguage,
 ): TaskListItemViewModel => {
-  const category = categories.find((item) => item.id === task.categoryId) ?? {
-    id: 'uncategorized',
-    label: 'Uncategorized',
-    color: '#E8EDF4',
-    kind: 'preset' as const,
-    archived: false,
-    archivedAt: null,
+  const sourceCategory =
+    categories.find((item) => item.id === task.categoryId) ??
+    ({
+      id: 'uncategorized',
+      label: translate(language, 'task.category.uncategorized'),
+      color: '#E8EDF4',
+      kind: 'preset',
+      archived: false,
+      archivedAt: null,
+    } as const);
+  const category = {
+    ...sourceCategory,
+    label: getTaskCategoryLabel(sourceCategory, language),
   };
   const completion = getTaskCompletionRecord(
     task.id,
@@ -160,7 +174,10 @@ const buildViewModel = (
         occurrenceDate,
         extractLocalTime(task.dueAt),
         timeFormat,
-        todayKey,
+        {
+          todayKey,
+          todayLabel: translate(language, 'common.today'),
+        },
       ),
       isCompleted: Boolean(completion),
     },
@@ -168,9 +185,9 @@ const buildViewModel = (
       task.title,
       task.notes,
       category.label,
-      task.priority,
+      getTaskPriorityLabel(language, task.priority),
       bucket,
-      task.repeatRule.type,
+      translate(language, `task.repeat.${task.repeatRule.type}`),
     ]
       .join(' ')
       .toLowerCase(),
@@ -185,6 +202,7 @@ export const buildTaskSections = ({
   timeFormat,
   today = new Date(),
   agendaWindowDays = AGENDA_WINDOW_DAYS,
+  language = DEFAULT_APP_LANGUAGE,
 }: {
   tasks: TaskItem[];
   filter: TaskFilter;
@@ -193,6 +211,7 @@ export const buildTaskSections = ({
   timeFormat: TimeFormat;
   today?: Date;
   agendaWindowDays?: number;
+  language?: AppLanguage;
 }): TaskListSection[] => {
   const todayKey = toDateKey(today);
   const activeTasks = tasks.filter((task) => !task.archived);
@@ -220,6 +239,7 @@ export const buildTaskSections = ({
         categories,
         timeFormat,
         todayKey,
+        language,
       );
       const bucket = viewModel.occurrence.isCompleted
         ? 'completed'
@@ -236,14 +256,14 @@ export const buildTaskSections = ({
       id,
       title:
         id === 'overdue'
-          ? 'Overdue'
+          ? translate(language, 'task.section.overdue')
           : id === 'today'
-            ? 'Today'
+            ? translate(language, 'task.section.today')
             : id === 'agenda'
-              ? 'Next 7 Days'
+              ? translate(language, 'task.section.agenda')
               : id === 'later'
-                ? 'Later'
-                : 'Completed',
+                ? translate(language, 'task.section.later')
+                : translate(language, 'task.section.completed'),
       accentColor:
         id === 'overdue'
           ? '#C92B2B'

@@ -9,12 +9,14 @@ import {
   View,
 } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 export default function OnboardingScreen() {
   const theme = useTheme();
+  const { t } = useI18n();
   const completeOnboarding = useAppStore((state) => state.completeOnboarding);
   const [name, setName] = useState('Astra');
   const [waterGoal, setWaterGoal] = useState('2500');
@@ -24,15 +26,13 @@ export default function OnboardingScreen() {
     <ScreenShell>
       <View style={styles.hero}>
         <Text style={[styles.eyebrow, { color: theme.colors.brand }]}>
-          Welcome
+          {t('onboarding.eyebrow')}
         </Text>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Set up your sanctuary
+          {t('onboarding.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Start with your name, hydration goal and reminders. Right after this
-          step, the guide will help you create your first task and habit from
-          scratch.
+          {t('onboarding.body')}
         </Text>
       </View>
 
@@ -50,7 +50,7 @@ export default function OnboardingScreen() {
         ]}
       >
         <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-          Display name
+          {t('onboarding.displayName')}
         </Text>
         <TextInput
           onChangeText={setName}
@@ -65,7 +65,7 @@ export default function OnboardingScreen() {
         />
 
         <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-          Daily water target (ml)
+          {t('onboarding.dailyTarget')}
         </Text>
         <TextInput
           keyboardType="number-pad"
@@ -87,7 +87,7 @@ export default function OnboardingScreen() {
           <Text
             style={[styles.toggleText, { color: theme.colors.textPrimary }]}
           >
-            Enable reminders
+            {t('onboarding.enableReminders')}
           </Text>
           <View
             style={[
@@ -118,8 +118,8 @@ export default function OnboardingScreen() {
             const parsedGoal = Number(waterGoal);
             if (!name.trim() || Number.isNaN(parsedGoal) || parsedGoal <= 0) {
               Alert.alert(
-                'Check the form',
-                'Please enter a name and a valid daily water target.',
+                t('onboarding.alert.title'),
+                t('onboarding.alert.body'),
               );
               return;
             }
@@ -143,7 +143,7 @@ export default function OnboardingScreen() {
           ]}
         >
           <Text style={[styles.primaryLabel, { color: theme.colors.surface }]}>
-            Continue to Sanctum
+            {t('onboarding.continue')}
           </Text>
         </Pressable>
       </View>

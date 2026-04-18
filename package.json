@@ -9,6 +9,8 @@
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx,.js",
     "test": "jest --runInBand",
+    "export:android": "expo export --platform android --output-dir .expo-export-check",
+    "release:check": "npm run lint && npm test && npm run export:android",
     "prepare": "husky"
   },
   "dependencies": {

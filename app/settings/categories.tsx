@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 
+import { getTaskCategoryLabel, useI18n } from '@/shared/i18n';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
@@ -23,6 +24,7 @@ const palette = [
 
 export default function CategoriesSettingsScreen() {
   const theme = useTheme();
+  const { language, t } = useI18n();
   const categories = useAppStore((state) => state.taskCategories);
   const createTaskCategory = useAppStore((state) => state.createTaskCategory);
   const updateTaskCategory = useAppStore((state) => state.updateTaskCategory);
@@ -41,7 +43,7 @@ export default function CategoriesSettingsScreen() {
 
   const handleSave = () => {
     if (!label.trim()) {
-      setError('Category name is required.');
+      setError(t('settings.categories.errorRequired'));
       return;
     }
 
@@ -73,11 +75,10 @@ export default function CategoriesSettingsScreen() {
         ]}
       >
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Task categories
+          {t('settings.categories.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Keep your filters tidy. Presets stay locked, custom categories can be
-          edited or archived.
+          {t('settings.categories.body')}
         </Text>
 
         <TextInput
@@ -87,7 +88,7 @@ export default function CategoriesSettingsScreen() {
               setError(null);
             }
           }}
-          placeholder="Category name"
+          placeholder={t('settings.categories.placeholder')}
           placeholderTextColor={theme.colors.textMuted}
           style={[
             styles.input,
@@ -143,7 +144,9 @@ export default function CategoriesSettingsScreen() {
             <Text
               style={[styles.buttonLabel, { color: theme.colors.textOnTint }]}
             >
-              {isEditing ? 'Save category' : 'Create category'}
+              {isEditing
+                ? t('settings.categories.saveUpdate')
+                : t('settings.categories.saveCreate')}
             </Text>
           </Pressable>
           {isEditing ? (
@@ -164,7 +167,7 @@ export default function CategoriesSettingsScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Cancel
+                {t('common.cancel')}
               </Text>
             </Pressable>
           ) : null}
@@ -187,7 +190,7 @@ export default function CategoriesSettingsScreen() {
         <Text
           style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
         >
-          Active categories
+          {t('settings.categories.sectionTitle')}
         </Text>
         {activeCategories.map((category) => {
           const fallbackCategory =
@@ -214,7 +217,7 @@ export default function CategoriesSettingsScreen() {
                       { color: theme.colors.textPrimary },
                     ]}
                   >
-                    {category.label}
+                    {getTaskCategoryLabel(category, language)}
                   </Text>
                   <Text
                     style={[
@@ -223,10 +226,15 @@ export default function CategoriesSettingsScreen() {
                     ]}
                   >
                     {category.kind === 'preset'
-                      ? 'Preset category'
+                      ? t('settings.categories.meta.preset')
                       : fallbackCategory
-                        ? `Archive moves tasks to ${fallbackCategory.label}`
-                        : 'Custom category'}
+                        ? t('settings.categories.meta.archiveFallback', {
+                            fallback: getTaskCategoryLabel(
+                              fallbackCategory,
+                              language,
+                            ),
+                          })
+                        : t('settings.categories.meta.custom')}
                   </Text>
                 </View>
               </View>
@@ -241,15 +249,13 @@ export default function CategoriesSettingsScreen() {
                     }}
                   >
                     <Text style={[styles.link, { color: theme.colors.brand }]}>
-                      Edit
+                      {t('common.edit')}
                     </Text>
                   </Pressable>
                   <Pressable
                     onPress={() => {
                       if (!fallbackCategory) {
-                        setError(
-                          'Add another active category before archiving this one.',
-                        );
+                        setError(t('settings.categories.errorNeedFallback'));
                         return;
                       }
 
@@ -263,7 +269,7 @@ export default function CategoriesSettingsScreen() {
                         { color: theme.colors.accentRed },
                       ]}
                     >
-                      Archive
+                      {t('common.archive')}
                     </Text>
                   </Pressable>
                 </View>
@@ -271,7 +277,7 @@ export default function CategoriesSettingsScreen() {
                 <Text
                   style={[styles.preset, { color: theme.colors.textSecondary }]}
                 >
-                  Locked
+                  {t('common.locked')}
                 </Text>
               )}
             </View>

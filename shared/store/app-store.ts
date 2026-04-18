@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { normalizeAppLanguage } from '@/shared/i18n/messages';
 import { isValidTimeValue } from '@/shared/lib/date';
 import { pickAndImportState } from '@/shared/services/data-transfer';
 import { requestNotificationPermissions } from '@/shared/services/notifications';
@@ -90,7 +91,7 @@ interface AppStore extends AppState {
     input: Partial<
       Pick<
         UserPreferences,
-        'timeFormat' | 'weekStartsOn' | 'displayName' | 'themeMode'
+        'timeFormat' | 'weekStartsOn' | 'displayName' | 'themeMode' | 'language'
       >
     >,
   ) => void;
@@ -500,6 +501,7 @@ export const useAppStore = create<AppStore>((set) => ({
         ...buildSnapshot(state),
         preferences: {
           ...state.preferences,
+          language: normalizeAppLanguage(state.preferences.language),
           displayName: input.displayName.trim(),
           dailyWaterTargetMl: input.dailyWaterTargetMl,
           notificationsEnabled,
@@ -524,9 +526,10 @@ export const useAppStore = create<AppStore>((set) => ({
       return nextState;
     }),
   importAppState: async (payload) => {
+    const language = useAppStore.getState().preferences.language;
     const imported = payload
       ? importAppStatePayload(payload)
-      : await pickAndImportState();
+      : await pickAndImportState(language);
     if (!imported) return false;
     const nextState = ensureDayState(imported);
     set({ ...nextState, isReady: true, activeTaskFilter: 'all' });

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { getHydrationHistoryItems } from '@/features/hydration/selectors';
+import { useI18n } from '@/shared/i18n';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { HydrationHistoryList } from '@/shared/ui/hydration-history-list';
@@ -15,6 +16,7 @@ const buildQuickDraft = (amounts: number[]) =>
 
 export default function WaterSettingsScreen() {
   const theme = useTheme();
+  const { language, t } = useI18n();
   const preferences = useAppStore((state) => state.preferences);
   const hydrationToday = useAppStore((state) => state.hydrationToday);
   const hydrationHistory = useAppStore((state) => state.hydrationHistory);
@@ -41,8 +43,15 @@ export default function WaterSettingsScreen() {
         hydrationToday,
         hydrationHistory,
         preferences.dailyWaterTargetMl,
+        7,
+        language,
       ),
-    [hydrationHistory, hydrationToday, preferences.dailyWaterTargetMl],
+    [
+      hydrationHistory,
+      hydrationToday,
+      language,
+      preferences.dailyWaterTargetMl,
+    ],
   );
 
   const setQuickValue = (index: number, value: string) => {
@@ -77,15 +86,15 @@ export default function WaterSettingsScreen() {
         ]}
       >
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Water
+          {t('settings.water.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Set a daily goal and the quick amounts used on the dashboard.
+          {t('settings.water.body')}
         </Text>
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            Daily target
+            {t('settings.water.dailyTarget')}
           </Text>
           <View style={styles.targetRow}>
             <Pressable
@@ -164,7 +173,7 @@ export default function WaterSettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            Quick buttons
+            {t('settings.water.quickButtons')}
           </Text>
           <View style={styles.quickGrid}>
             {quickDraft.map((value, index) => (
@@ -181,7 +190,7 @@ export default function WaterSettingsScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Quick {index + 1}
+                  {t('settings.water.quickSlot', { index: index + 1 })}
                 </Text>
                 <TextInput
                   keyboardType="number-pad"
@@ -214,7 +223,10 @@ export default function WaterSettingsScreen() {
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  Slot {index + 1}: {preset}
+                  {t('settings.water.slotPreset', {
+                    index: index + 1,
+                    amount: preset,
+                  })}
                 </Text>
               </Pressable>
             ))}
@@ -230,13 +242,17 @@ export default function WaterSettingsScreen() {
           <Text
             style={[styles.summaryTitle, { color: theme.colors.textPrimary }]}
           >
-            Preview
+            {t('settings.water.summaryTitle')}
           </Text>
           <Text
             style={[styles.summaryBody, { color: theme.colors.textSecondary }]}
           >
-            Goal {Number(target) || preferences.dailyWaterTargetMl} ml • Quick
-            buttons {parsedQuickAmounts.join(', ') || 'not set'}
+            {t('settings.water.summaryBody', {
+              target: Number(target) || preferences.dailyWaterTargetMl,
+              buttons:
+                parsedQuickAmounts.join(', ') ||
+                t('settings.water.summaryNotSet'),
+            })}
           </Text>
         </View>
 
@@ -262,7 +278,7 @@ export default function WaterSettingsScreen() {
           <Text
             style={[styles.buttonLabel, { color: theme.colors.textOnTint }]}
           >
-            Save water settings
+            {t('settings.water.save')}
           </Text>
         </Pressable>
       </View>

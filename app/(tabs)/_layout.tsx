@@ -20,18 +20,12 @@ import {
 } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from '@/shared/i18n';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ArchiveSnackbar } from '@/shared/ui/archive-snackbar';
 import { ReleaseTourModal } from '@/shared/ui/release-tour-modal';
-
-const labelMap = {
-  index: 'Dashboard',
-  tasks: 'Tasks',
-  habits: 'Habits',
-  profile: 'Profile',
-};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -54,6 +48,7 @@ const TAB_BAR_BLOCKERS = new Set([
 
 function SanctumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const gestureBlockers = useUiStore((store) => store.gestureBlockers);
   const isTabBarBlocked = useMemo(
@@ -62,6 +57,15 @@ function SanctumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
   const dragStartX = useRef(0);
   const isDraggingRef = useRef(false);
+  const labelMap = useMemo(
+    () => ({
+      index: t('tabs.dashboard'),
+      tasks: t('tasks.header'),
+      habits: t('habits.header'),
+      profile: t('profile.header'),
+    }),
+    [t],
+  );
 
   const [tabLayouts, setTabLayouts] = useState<{ x: number; width: number }[]>(
     Array.from({ length: state.routes.length }, () => ({ x: 0, width: 0 })),
@@ -348,6 +352,7 @@ function SanctumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const { t } = useI18n();
   const isReady = useAppStore((state) => state.isReady);
   const hasCompletedOnboarding = useAppStore(
     (state) => state.preferences.hasCompletedOnboarding,
@@ -404,10 +409,13 @@ export default function TabsLayout() {
           }}
           tabBar={(props) => <SanctumTabBar {...props} />}
         >
-          <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
-          <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
-          <Tabs.Screen name="habits" options={{ title: 'Habits' }} />
-          <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+          <Tabs.Screen name="index" options={{ title: t('tabs.dashboard') }} />
+          <Tabs.Screen name="tasks" options={{ title: t('tasks.header') }} />
+          <Tabs.Screen name="habits" options={{ title: t('habits.header') }} />
+          <Tabs.Screen
+            name="profile"
+            options={{ title: t('profile.header') }}
+          />
         </Tabs>
         <ArchiveSnackbar />
         <ReleaseTourModal

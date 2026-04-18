@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { formatTimeLabel, shiftTimeValue } from '@/shared/lib/date';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { TimeFormat } from '@/shared/types/app';
@@ -24,6 +25,7 @@ export function TimeStepper({
   minuteStep = 15,
 }: TimeStepperProps) {
   const theme = useTheme();
+  const { locale, t } = useI18n();
 
   return (
     <View style={styles.section}>
@@ -43,7 +45,8 @@ export function TimeStepper({
           ]}
         >
           <Text style={[styles.stepLabel, { color: theme.colors.textPrimary }]}>
-            -{minuteStep}m
+            -{minuteStep}
+            {t('stepper.minuteShort')}
           </Text>
         </Pressable>
         <View
@@ -56,7 +59,7 @@ export function TimeStepper({
           ]}
         >
           <Text style={[styles.valueText, { color: theme.colors.textPrimary }]}>
-            {formatTimeLabel(value, timeFormat)}
+            {formatTimeLabel(value, timeFormat, locale)}
           </Text>
         </View>
         <Pressable
@@ -71,7 +74,8 @@ export function TimeStepper({
           ]}
         >
           <Text style={[styles.stepLabel, { color: theme.colors.textPrimary }]}>
-            +{minuteStep}m
+            +{minuteStep}
+            {t('stepper.minuteShort')}
           </Text>
         </Pressable>
       </View>
@@ -104,7 +108,7 @@ export function TimeStepper({
                     },
                   ]}
                 >
-                  {formatTimeLabel(preset, timeFormat)}
+                  {formatTimeLabel(preset, timeFormat, locale)}
                 </Text>
               </Pressable>
             );

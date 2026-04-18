@@ -1,3 +1,9 @@
+import {
+  DEFAULT_APP_LANGUAGE,
+  getLocale,
+  translate,
+  type AppLanguage,
+} from '@/shared/i18n/messages';
 import { formatDateKeyLabel } from '@/shared/lib/date';
 import type {
   HydrationDayState,
@@ -27,6 +33,7 @@ export const getHydrationHistoryItems = (
   history: HydrationDayState[],
   targetMl: number,
   limit = 7,
+  language: AppLanguage = DEFAULT_APP_LANGUAGE,
 ): HydrationHistoryListItemViewModel[] =>
   [today, ...history]
     .filter(
@@ -40,9 +47,10 @@ export const getHydrationHistoryItems = (
         date: item.date,
         label:
           item.date === today.date
-            ? 'Today'
+            ? translate(language, 'common.today')
             : formatDateKeyLabel(item.date, {
                 includeWeekday: true,
+                locale: getLocale(language),
               }),
         consumedMl: item.consumedMl,
         targetMl,

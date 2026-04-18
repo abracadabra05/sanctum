@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { HydrationHistoryListItemViewModel } from '@/shared/types/app';
 
@@ -15,6 +16,7 @@ export function HydrationHistoryList({
   compact = false,
 }: HydrationHistoryListProps) {
   const theme = useTheme();
+  const { t } = useI18n();
 
   return (
     <View
@@ -32,12 +34,12 @@ export function HydrationHistoryList({
     >
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Hydration history
+          {t('hydration.history.title')}
         </Text>
         {onPressMore ? (
           <Pressable onPress={onPressMore}>
             <Text style={[styles.link, { color: theme.colors.brand }]}>
-              Open
+              {t('common.open')}
             </Text>
           </Pressable>
         ) : null}
@@ -88,7 +90,7 @@ export function HydrationHistoryList({
                   <Text
                     style={[styles.statusLabel, { color: theme.colors.brand }]}
                   >
-                    Goal
+                    {t('hydration.history.goal')}
                   </Text>
                 </View>
               ) : null}
@@ -103,10 +105,10 @@ export function HydrationHistoryList({
           ]}
         >
           <Text style={[styles.rowTitle, { color: theme.colors.textPrimary }]}>
-            No history yet
+            {t('hydration.history.emptyTitle')}
           </Text>
           <Text style={[styles.rowMeta, { color: theme.colors.textSecondary }]}>
-            Daily totals appear here after the app rolls into a new day.
+            {t('hydration.history.emptyBody')}
           </Text>
         </View>
       )}

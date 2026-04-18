@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import { getTaskPriorityLabel, useI18n } from '@/shared/i18n';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { TaskListItemViewModel } from '@/shared/types/app';
@@ -40,6 +41,7 @@ export function TaskSearchOverlay({
   onSelect,
 }: TaskSearchOverlayProps) {
   const theme = useTheme();
+  const { language, t } = useI18n();
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(12)).current;
@@ -127,7 +129,7 @@ export function TaskSearchOverlay({
               <TextInput
                 autoFocus
                 onChangeText={onChangeQuery}
-                placeholder="Search tasks"
+                placeholder={t('search.placeholder')}
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, { color: theme.colors.textPrimary }]}
                 value={query}
@@ -144,7 +146,7 @@ export function TaskSearchOverlay({
                       { color: theme.colors.brand },
                     ]}
                   >
-                    Clear
+                    {t('search.clear')}
                   </Text>
                 </Pressable>
               ) : null}
@@ -159,7 +161,7 @@ export function TaskSearchOverlay({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Close
+                  {t('search.close')}
                 </Text>
               </Pressable>
             </View>
@@ -193,7 +195,9 @@ export function TaskSearchOverlay({
                     },
                   ]}
                 >
-                  {includeArchived ? 'Archived included' : 'Include archived'}
+                  {includeArchived
+                    ? t('search.archivedIncluded')
+                    : t('search.includeArchived')}
                 </Text>
               </Pressable>
             </View>
@@ -220,7 +224,7 @@ export function TaskSearchOverlay({
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Search
+                {t('search.title')}
               </Text>
               <Text
                 style={[
@@ -229,7 +233,7 @@ export function TaskSearchOverlay({
                 ]}
               >
                 {hasQuery
-                  ? `${results.length} result${results.length === 1 ? '' : 's'}`
+                  ? t('search.results', { count: results.length })
                   : scopeLabel}
               </Text>
             </View>
@@ -271,7 +275,7 @@ export function TaskSearchOverlay({
                           ]}
                         >
                           {item.category.label} • {item.occurrence.displayTime}{' '}
-                          • {item.task.priority}
+                          • {getTaskPriorityLabel(language, item.task.priority)}
                         </Text>
                       </View>
                     </Pressable>
@@ -291,7 +295,9 @@ export function TaskSearchOverlay({
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  {hasQuery ? 'Nothing found' : 'No tasks in this filter'}
+                  {hasQuery
+                    ? t('search.empty.noMatchTitle')
+                    : t('search.empty.noFilterTitle')}
                 </Text>
                 <Text
                   style={[
@@ -300,8 +306,8 @@ export function TaskSearchOverlay({
                   ]}
                 >
                   {hasQuery
-                    ? 'Try a different task name, category, note or priority.'
-                    : 'Global search lists every active task and can optionally include archived items.'}
+                    ? t('search.empty.noMatchBody')
+                    : t('search.empty.noFilterBody')}
                 </Text>
               </View>
             )}

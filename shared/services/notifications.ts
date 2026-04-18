@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 
+import { translate } from '@/shared/i18n/messages';
 import {
   buildHabitReminderDates,
   buildWaterReminderDates,
@@ -102,8 +103,11 @@ export const syncWaterNotifications = async (state: AppState) => {
   )) {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Hydration check-in',
-        body: 'A small glass now keeps your rhythm steady.',
+        title: translate(
+          state.preferences.language,
+          'notifications.water.title',
+        ),
+        body: translate(state.preferences.language, 'notifications.water.body'),
         data: { tag: WATER_IDENTIFIER },
       },
       trigger: {
@@ -133,7 +137,10 @@ export const syncHabitNotifications = async (state: AppState) => {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: habit.name,
-          body: 'Your planned habit is ready to be completed.',
+          body: translate(
+            state.preferences.language,
+            'notifications.habit.body',
+          ),
           data: { tag: HABIT_IDENTIFIER, habitId: habit.id },
         },
         trigger: {

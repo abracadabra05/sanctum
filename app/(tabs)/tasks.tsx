@@ -19,6 +19,11 @@ import {
   getTaskCompletion,
 } from '@/features/tasks/selectors';
 import {
+  getTaskCategoryLabel,
+  getTaskFilterLabel,
+  useI18n,
+} from '@/shared/i18n';
+import {
   addDays,
   extractLocalTime,
   formatDateTimeLabel,
@@ -46,12 +51,13 @@ if (
 
 function TasksHeader({ onOpenSearch }: { onOpenSearch: () => void }) {
   const theme = useTheme();
+  const { t } = useI18n();
 
   return (
     <View style={styles.headerWrap}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-          Tasks
+          {t('tasks.header')}
         </Text>
         <Pressable onPress={onOpenSearch} style={styles.headerIconButton}>
           <Ionicons color={theme.colors.iconNeutral} name="search" size={24} />
@@ -65,6 +71,8 @@ const buildArchivedItem = (
   task: TaskItem,
   categoryLabel: string,
   timeFormat: '12h' | '24h',
+  locale: string,
+  archivedLabel: string,
 ): TaskListItemViewModel => ({
   task,
   category: {
@@ -78,10 +86,11 @@ const buildArchivedItem = (
   occurrence: {
     occurrenceDate: toDateKey(new Date(task.dueAt)),
     displayTime: task.archivedAt
-      ? `Archived ${formatDateTimeLabel(task.archivedAt, timeFormat, {
+      ? `${archivedLabel} ${formatDateTimeLabel(task.archivedAt, timeFormat, {
           includeWeekday: true,
+          locale,
         })}`
-      : 'Archived',
+      : archivedLabel,
     isCompleted: Boolean(task.completedAt),
   },
   searchText: [task.title, task.notes, categoryLabel, task.priority, 'archived']
@@ -91,6 +100,7 @@ const buildArchivedItem = (
 
 export default function TasksScreen() {
   const theme = useTheme();
+  const { language, locale, t } = useI18n();
   const tasks = useAppStore((state) => state.tasks);
   const taskCompletions = useAppStore((state) => state.taskCompletions);
   const taskCategories = useAppStore((state) => state.taskCategories);
@@ -218,8 +228,16 @@ export default function TasksScreen() {
         completions: taskCompletions,
         categories,
         timeFormat: preferences.timeFormat,
+        language,
       }),
-    [categories, filter, preferences.timeFormat, taskCompletions, tasks],
+    [
+      categories,
+      filter,
+      language,
+      preferences.timeFormat,
+      taskCompletions,
+      tasks,
+    ],
   );
 
   const searchSections = useMemo(
@@ -230,8 +248,9 @@ export default function TasksScreen() {
         completions: taskCompletions,
         categories,
         timeFormat: preferences.timeFormat,
+        language,
       }),
-    [categories, preferences.timeFormat, taskCompletions, tasks],
+    [categories, language, preferences.timeFormat, taskCompletions, tasks],
   );
 
   const archivedItems = useMemo(
@@ -248,12 +267,26 @@ export default function TasksScreen() {
           return rightTime - leftTime;
         })
         .map((task) => {
-          const categoryLabel =
-            taskCategories.find((item) => item.id === task.categoryId)?.label ??
-            'Uncategorized';
-          return buildArchivedItem(task, categoryLabel, preferences.timeFormat);
+          const sourceCategory = taskCategories.find(
+            (item) => item.id === task.categoryId,
+          ) ?? {
+            id: 'uncategorized',
+            label: t('task.category.uncategorized'),
+            color: '#E8EDF4',
+            kind: 'preset' as const,
+            archived: false,
+            archivedAt: null,
+          };
+          const categoryLabel = getTaskCategoryLabel(sourceCategory, language);
+          return buildArchivedItem(
+            task,
+            categoryLabel,
+            preferences.timeFormat,
+            locale,
+            t('tasks.archived.status'),
+          );
         }),
-    [preferences.timeFormat, taskCategories, tasks],
+    [language, locale, preferences.timeFormat, t, taskCategories, tasks],
   );
 
   const overlayDataset = useMemo(
@@ -337,20 +370,20 @@ export default function TasksScreen() {
           ]}
         >
           <Text style={[styles.focusEyebrow, { color: theme.colors.brand }]}>
-            Daily Pulse
+            {t('tasks.focus.eyebrow')}
           </Text>
           <Text
             style={[styles.focusTitle, { color: theme.colors.textPrimary }]}
           >
-            Today&apos;s Focus
+            {t('tasks.focus.title')}
           </Text>
           <Text
             style={[styles.focusBody, { color: theme.colors.textSecondary }]}
           >
-            Search any task, move overdue work, keep this week visible.
+            {t('tasks.focus.body')}
           </Text>
           <ProgressRing
-            centerCaption="Done"
+            centerCaption={t('tasks.focus.centerCaption')}
             centerLabel={`${focusCompletion}%`}
             percentage={focusCompletion}
             size={148}
@@ -387,9 +420,10 @@ export default function TasksScreen() {
             />
             {filterItems.map((item) => {
               const active = item === filter;
-              const label =
-                categories.find((category) => category.id === item)?.label ??
-                item.charAt(0).toUpperCase() + item.slice(1);
+              const category = categories.find((entry) => entry.id === item);
+              const label = category
+                ? getTaskCategoryLabel(category, language)
+                : getTaskFilterLabel(language, item);
               return (
                 <Pressable
                   key={item}
@@ -427,7 +461,7 @@ export default function TasksScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Archived
+                {t('tasks.archived.title')}
               </Text>
               <Text
                 style={[
@@ -435,7 +469,7 @@ export default function TasksScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                {archivedItems.length} items
+                {t('tasks.archived.count', { count: archivedItems.length })}
               </Text>
             </View>
             {archivedItems.length ? (
@@ -479,7 +513,7 @@ export default function TasksScreen() {
                         { color: theme.colors.brand },
                       ]}
                     >
-                      Restore
+                      {t('common.restore')}
                     </Text>
                   </Pressable>
                 </View>
@@ -497,7 +531,7 @@ export default function TasksScreen() {
                     { color: theme.colors.textPrimary },
                   ]}
                 >
-                  No archived tasks
+                  {t('tasks.archived.emptyTitle')}
                 </Text>
                 <Text
                   style={[
@@ -505,8 +539,7 @@ export default function TasksScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Archived tasks will appear here and can be restored at any
-                  time.
+                  {t('tasks.archived.emptyBody')}
                 </Text>
               </View>
             )}
@@ -544,7 +577,9 @@ export default function TasksScreen() {
                     }
                     onToggle={completeTaskOccurrence}
                     secondaryActionLabel={
-                      section.id === 'overdue' ? 'Move to tomorrow' : undefined
+                      section.id === 'overdue'
+                        ? t('tasks.secondary.moveTomorrow')
+                        : undefined
                     }
                   />
                 ))}
@@ -554,8 +589,8 @@ export default function TasksScreen() {
         ) : (
           <EmptyState
             icon="tasks"
-            title="No tasks yet"
-            description="Tap the + button to create your first task and start organizing your day."
+            title={t('tasks.empty.title')}
+            description={t('tasks.empty.body')}
           />
         )}
       </ScreenShell>
@@ -575,8 +610,8 @@ export default function TasksScreen() {
         results={overlayResults}
         scopeLabel={
           searchIncludeArchived
-            ? 'All tasks, including archived'
-            : 'All active tasks'
+            ? t('tasks.search.scopeArchived')
+            : t('tasks.search.scopeActive')
         }
         visible={searchOpen}
       />
@@ -587,13 +622,13 @@ export default function TasksScreen() {
           [
             {
               id: 'create-task',
-              label: 'Add task',
+              label: t('tasks.fab.addTask'),
               icon: { name: 'add-circle-outline', type: 'ionicon' },
               onPress: openCreate,
             },
             {
               id: 'search',
-              label: 'Global search',
+              label: t('tasks.fab.search'),
               icon: { name: 'search-outline', type: 'ionicon' },
               onPress: () => setSearchOpen(true),
             },

@@ -1,3 +1,4 @@
+import { normalizeAppLanguage } from '@/shared/i18n/messages';
 import { toDateKey, tryCombineDateAndTime } from '@/shared/lib/date';
 import {
   syncHabitNotifications,
@@ -157,11 +158,15 @@ export const normalizeDisplayPreferences = (
   input: Partial<
     Pick<
       UserPreferences,
-      'timeFormat' | 'weekStartsOn' | 'displayName' | 'themeMode'
+      'timeFormat' | 'weekStartsOn' | 'displayName' | 'themeMode' | 'language'
     >
   >,
 ) => ({
   ...current,
   ...input,
+  language:
+    input.language !== undefined
+      ? normalizeAppLanguage(input.language)
+      : current.language,
   displayName: input.displayName?.trim() || current.displayName,
 });

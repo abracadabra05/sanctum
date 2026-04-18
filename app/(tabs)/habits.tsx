@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { getHabitCards, getHabitDetail } from '@/features/habits/selectors';
+import { useI18n } from '@/shared/i18n';
 import { toDateKey } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
@@ -34,6 +35,7 @@ if (
 
 export default function HabitsScreen() {
   const theme = useTheme();
+  const { language, t } = useI18n();
   const habits = useAppStore((state) => state.habits);
   const preferences = useAppStore((state) => state.preferences);
   const isFocused = useIsFocused();
@@ -97,8 +99,8 @@ export default function HabitsScreen() {
   );
 
   const cards = useMemo(
-    () => getHabitCards(visibleHabits, preferences.timeFormat),
-    [preferences.timeFormat, visibleHabits],
+    () => getHabitCards(visibleHabits, preferences.timeFormat, language),
+    [language, preferences.timeFormat, visibleHabits],
   );
 
   const selectedHabit = useMemo(
@@ -109,9 +111,14 @@ export default function HabitsScreen() {
   const detail = useMemo(
     () =>
       selectedHabit
-        ? getHabitDetail(selectedHabit, preferences.timeFormat)
+        ? getHabitDetail(
+            selectedHabit,
+            preferences.timeFormat,
+            new Date(),
+            language,
+          )
         : null,
-    [preferences.timeFormat, selectedHabit],
+    [language, preferences.timeFormat, selectedHabit],
   );
 
   return (
@@ -122,7 +129,7 @@ export default function HabitsScreen() {
             <Text
               style={[styles.headerTitle, { color: theme.colors.textPrimary }]}
             >
-              Habits
+              {t('habits.header')}
             </Text>
             <Pressable onPress={openCreate} style={styles.headerAction}>
               <Ionicons
@@ -148,20 +155,20 @@ export default function HabitsScreen() {
           ]}
         >
           <Text style={[styles.eyebrow, { color: theme.colors.brand }]}>
-            Consistency
+            {t('habits.summary.eyebrow')}
           </Text>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            Keep rituals steady
+            {t('habits.summary.title')}
           </Text>
           <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-            Open a habit for details, then mark today complete in one step.
+            {t('habits.summary.body')}
           </Text>
         </View>
 
         <View style={styles.segmentRow}>
           {[
-            { id: 'active', label: 'Active' },
-            { id: 'archived', label: 'Archived' },
+            { id: 'active', label: t('habits.segment.active') },
+            { id: 'archived', label: t('habits.segment.archived') },
           ].map((item) => {
             const active = (item.id === 'archived') === showArchived;
             return (
@@ -213,11 +220,15 @@ export default function HabitsScreen() {
           ) : (
             <EmptyState
               icon="habits"
-              title={showArchived ? 'No archived habits' : 'No habits yet'}
+              title={
+                showArchived
+                  ? t('habits.empty.archivedTitle')
+                  : t('habits.empty.activeTitle')
+              }
               description={
                 showArchived
-                  ? 'Your archived habits will appear here.'
-                  : 'Tap the + button to create your first habit.'
+                  ? t('habits.empty.archivedBody')
+                  : t('habits.empty.activeBody')
               }
             />
           )}
@@ -230,7 +241,7 @@ export default function HabitsScreen() {
           [
             {
               id: 'create-habit',
-              label: 'Add habit',
+              label: t('habits.fab.addHabit'),
               icon: { name: 'leaf-outline', type: 'ionicon' },
               onPress: openCreate,
             },

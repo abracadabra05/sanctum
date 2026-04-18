@@ -8,6 +8,7 @@ import {
   type PanGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
 
+import { getTaskPriorityLabel, useI18n } from '@/shared/i18n';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import type { TaskListItemViewModel } from '@/shared/types/app';
@@ -51,6 +52,7 @@ export function TaskCard({
   secondaryActionLabel,
 }: TaskCardProps) {
   const theme = useTheme();
+  const { language, t } = useI18n();
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const done = item.occurrence.isCompleted;
   const cardSurfaceColor = done
@@ -160,7 +162,7 @@ export function TaskCard({
               { color: theme.colors.textOnTint },
             ]}
           >
-            Archive
+            {t('taskCard.archive')}
           </Text>
         </View>
       </View>
@@ -264,12 +266,15 @@ export function TaskCard({
                         },
                       ]}
                     >
-                      {done ? 'Done' : item.occurrence.displayTime}
+                      {done ? t('taskCard.done') : item.occurrence.displayTime}
                     </Text>
                     <Text
                       style={[styles.priority, { color: priorityTextColor }]}
                     >
-                      {item.task.priority.toUpperCase()}
+                      {getTaskPriorityLabel(
+                        language,
+                        item.task.priority,
+                      ).toUpperCase()}
                     </Text>
                   </View>
                 </View>

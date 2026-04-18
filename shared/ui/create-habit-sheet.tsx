@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 
+import { useI18n } from '@/shared/i18n';
+import { formatWeekdayLabel } from '@/shared/lib/date';
 import {
   buildHabitDraftFromHabit,
   createHabitDraft,
@@ -47,6 +49,7 @@ export function CreateHabitSheet({
   initialHabit,
 }: CreateHabitSheetProps) {
   const theme = useTheme();
+  const { language, locale, t } = useI18n();
   const createHabit = useAppStore((state) => state.createHabit);
   const updateHabit = useAppStore((state) => state.updateHabit);
   const archiveHabit = useAppStore((state) => state.archiveHabit);
@@ -67,7 +70,10 @@ export function CreateHabitSheet({
     dragBlockKey: 'habit-sheet-drag',
   });
 
-  const validation = useMemo(() => validateHabitDraft(draft), [draft]);
+  const validation = useMemo(
+    () => validateHabitDraft(draft, language),
+    [draft, language],
+  );
   const errors = validation.success
     ? {}
     : getDraftErrors(validation.error.issues);
@@ -156,13 +162,15 @@ export function CreateHabitSheet({
           </PanGestureHandler>
 
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            {initialHabit ? 'Edit habit' : 'Create habit'}
+            {initialHabit
+              ? t('createHabit.titleEdit')
+              : t('createHabit.titleCreate')}
           </Text>
           <TextInput
             onChangeText={(value) =>
               setDraft((current) => ({ ...current, name: value }))
             }
-            placeholder="Habit name"
+            placeholder={t('createHabit.placeholderName')}
             placeholderTextColor={theme.colors.textMuted}
             style={[
               styles.input,
@@ -211,7 +219,15 @@ export function CreateHabitSheet({
                       },
                     ]}
                   >
-                    {icon}
+                    {icon === 'sparkles'
+                      ? t('createHabit.icon.sparkles')
+                      : icon === 'circle'
+                        ? t('createHabit.icon.circle')
+                        : icon === 'leaf'
+                          ? t('createHabit.icon.leaf')
+                          : icon === 'book'
+                            ? t('createHabit.icon.book')
+                            : t('createHabit.icon.moon')}
                   </Text>
                 </Pressable>
               ))}
@@ -272,7 +288,9 @@ export function CreateHabitSheet({
                       },
                     ]}
                   >
-                    {mode}
+                    {mode === 'daily'
+                      ? t('habit.goalMode.daily')
+                      : t('habit.goalMode.weekly')}
                   </Text>
                 </Pressable>
               );
@@ -287,7 +305,7 @@ export function CreateHabitSheet({
                 targetPerPeriod: value.replace(/[^0-9]/g, ''),
               }))
             }
-            placeholder="Target per period"
+            placeholder={t('createHabit.placeholderTarget')}
             placeholderTextColor={theme.colors.textMuted}
             style={[
               styles.input,
@@ -311,11 +329,19 @@ export function CreateHabitSheet({
           <Text
             style={[styles.inlineLabel, { color: theme.colors.textSecondary }]}
           >
-            Schedule
+            {t('createHabit.schedule')}
           </Text>
           <View style={styles.optionsRow}>
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, day) => {
+            {[0, 1, 2, 3, 4, 5, 6].map((day) => {
               const active = draft.schedule.includes(day);
+              const label = formatWeekdayLabel(
+                day as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+                'short',
+                locale,
+              )
+                .replace('.', '')
+                .slice(0, 2)
+                .toUpperCase();
               return (
                 <Pressable
                   key={`${label}-${day}`}
@@ -387,14 +413,14 @@ export function CreateHabitSheet({
                   },
                 ]}
               >
-                Reminder
+                {t('createHabit.reminderToggle')}
               </Text>
             </Pressable>
           </View>
 
           <TimeStepper
             disabled={!draft.reminderEnabled}
-            label="Reminder time"
+            label={t('createHabit.reminderTime')}
             onChange={(reminderTime) =>
               setDraft((current) => ({ ...current, reminderTime }))
             }
@@ -431,7 +457,7 @@ export function CreateHabitSheet({
                     { color: theme.colors.accentRed },
                   ]}
                 >
-                  Archive
+                  {t('common.archive')}
                 </Text>
               </Pressable>
             ) : null}
@@ -448,7 +474,7 @@ export function CreateHabitSheet({
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Close
+                {t('common.close')}
               </Text>
             </Pressable>
             <Pressable
@@ -464,7 +490,7 @@ export function CreateHabitSheet({
               <Text
                 style={[styles.actionLabel, { color: theme.colors.textOnTint }]}
               >
-                {initialHabit ? 'Save' : 'Create'}
+                {initialHabit ? t('common.save') : t('common.create')}
               </Text>
             </Pressable>
           </View>

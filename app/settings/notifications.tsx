@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
+import { formatTimeLabel } from '@/shared/lib/date';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
@@ -11,6 +13,7 @@ const cutoffPresets = ['20:00', '21:00', '22:00'];
 
 export default function NotificationsSettingsScreen() {
   const theme = useTheme();
+  const { locale, t } = useI18n();
   const preferences = useAppStore((state) => state.preferences);
   const timeFormat = useAppStore((state) => state.preferences.timeFormat);
   const setNotificationPreferences = useAppStore(
@@ -40,10 +43,10 @@ export default function NotificationsSettingsScreen() {
         ]}
       >
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Notifications
+          {t('settings.notifications.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Water reminders stay local and only run when you enable them.
+          {t('settings.notifications.body')}
         </Text>
 
         <Pressable
@@ -58,12 +61,12 @@ export default function NotificationsSettingsScreen() {
             <Text
               style={[styles.toggleTitle, { color: theme.colors.textPrimary }]}
             >
-              Water reminders
+              {t('settings.notifications.cardTitle')}
             </Text>
             <Text
               style={[styles.toggleHint, { color: theme.colors.textSecondary }]}
             >
-              Skip reminders after your cutoff time or once the goal is reached.
+              {t('settings.notifications.cardBody')}
             </Text>
           </View>
           <View
@@ -86,14 +89,14 @@ export default function NotificationsSettingsScreen() {
                 },
               ]}
             >
-              {enabled ? 'On' : 'Off'}
+              {enabled ? t('common.on') : t('common.off')}
             </Text>
           </View>
         </Pressable>
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            Reminder interval
+            {t('settings.notifications.interval')}
           </Text>
           <View style={styles.segmentRow}>
             {intervalOptions.map((item) => {
@@ -135,7 +138,7 @@ export default function NotificationsSettingsScreen() {
         <View style={styles.section}>
           <TimeStepper
             disabled={!enabled}
-            label="Stop reminders after"
+            label={t('settings.notifications.stopAfter')}
             minuteStep={30}
             onChange={setCutoff}
             presets={cutoffPresets}
@@ -153,13 +156,15 @@ export default function NotificationsSettingsScreen() {
           <Text
             style={[styles.summaryTitle, { color: theme.colors.textPrimary }]}
           >
-            Reminder behavior
+            {t('settings.notifications.summaryTitle')}
           </Text>
           <Text
             style={[styles.summaryBody, { color: theme.colors.textSecondary }]}
           >
-            Every {interval} minutes until {cutoff}. The app skips reminders
-            once your water goal is done.
+            {t('settings.notifications.summaryBody', {
+              interval,
+              cutoff: formatTimeLabel(cutoff, timeFormat, locale),
+            })}
           </Text>
         </View>
 
@@ -186,7 +191,7 @@ export default function NotificationsSettingsScreen() {
           <Text
             style={[styles.buttonLabel, { color: theme.colors.textOnTint }]}
           >
-            Save notifications
+            {t('settings.notifications.save')}
           </Text>
         </Pressable>
       </View>

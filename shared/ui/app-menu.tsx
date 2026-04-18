@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { useUiStore } from '@/shared/store/ui-store';
 import { spacing, typography, useTheme } from '@/shared/theme';
 
@@ -23,20 +24,20 @@ interface AppMenuProps {
   onOpenProfile: () => void;
 }
 
-const items = [
-  { key: 'search', label: 'Search tasks', icon: 'search-outline' },
-  { key: 'task', label: 'Quick add task', icon: 'add-circle-outline' },
-  { key: 'habit', label: 'Quick add habit', icon: 'leaf-outline' },
-  { key: 'data', label: 'Data actions', icon: 'download-outline' },
-  { key: 'profile', label: 'Profile & settings', icon: 'person-outline' },
-] as const;
-
 export function AppMenu(props: AppMenuProps) {
   const theme = useTheme();
+  const { t } = useI18n();
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-10)).current;
   const scale = useRef(new Animated.Value(0.98)).current;
+  const items = [
+    { key: 'search', label: t('appMenu.search'), icon: 'search-outline' },
+    { key: 'task', label: t('appMenu.addTask'), icon: 'add-circle-outline' },
+    { key: 'habit', label: t('appMenu.addHabit'), icon: 'leaf-outline' },
+    { key: 'data', label: t('appMenu.data'), icon: 'download-outline' },
+    { key: 'profile', label: t('appMenu.profile'), icon: 'person-outline' },
+  ] as const;
 
   useEffect(() => {
     setGestureBlock('app-menu', props.visible);
@@ -88,7 +89,7 @@ export function AppMenu(props: AppMenuProps) {
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Close menu"
+          accessibilityLabel={t('appMenu.close')}
           style={StyleSheet.absoluteFill}
           onPress={props.onClose}
         />
@@ -108,7 +109,7 @@ export function AppMenu(props: AppMenuProps) {
           ]}
         >
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            Quick actions
+            {t('appMenu.title')}
           </Text>
           {items.map((item) => (
             <Pressable

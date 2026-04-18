@@ -4,6 +4,11 @@ import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 
 import {
+  DEFAULT_APP_LANGUAGE,
+  translate,
+  type AppLanguage,
+} from '@/shared/i18n/messages';
+import {
   exportAppStatePayload,
   importAppStatePayload,
 } from '@/shared/storage/adapter';
@@ -24,17 +29,25 @@ export const exportStateToJson = async (state: AppState) => {
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/json',
-        dialogTitle: 'Export Sanctum data',
+        dialogTitle: translate(
+          state.preferences.language,
+          'dataTransfer.exportDialogTitle',
+        ),
       });
     }
     return fileUri;
   } catch {
-    Alert.alert('Export failed', 'Could not export data. Please try again.');
+    Alert.alert(
+      translate(state.preferences.language, 'dataTransfer.exportFailedTitle'),
+      translate(state.preferences.language, 'dataTransfer.exportFailedBody'),
+    );
     return null;
   }
 };
 
-export const pickAndImportState = async () => {
+export const pickAndImportState = async (
+  language: AppLanguage = DEFAULT_APP_LANGUAGE,
+) => {
   try {
     const result = await DocumentPicker.getDocumentAsync({
       type: 'application/json',
@@ -49,10 +62,10 @@ export const pickAndImportState = async () => {
     return importAppStatePayload(parsed);
   } catch (error) {
     Alert.alert(
-      'Import failed',
+      translate(language, 'dataTransfer.importFailedTitle'),
       error instanceof Error
         ? error.message
-        : 'The selected file is not a valid Sanctum export.',
+        : translate(language, 'dataTransfer.importFailedBody'),
     );
     return null;
   }

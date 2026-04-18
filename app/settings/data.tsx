@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '@/shared/i18n';
 import { exportStateToJson } from '@/shared/services/data-transfer';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
@@ -9,6 +10,7 @@ import { ScreenShell } from '@/shared/ui/screen-shell';
 export default function DataSettingsScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const { t } = useI18n();
   const schemaVersion = useAppStore((store) => store.schemaVersion);
   const hydrationToday = useAppStore((store) => store.hydrationToday);
   const hydrationHistory = useAppStore((store) => store.hydrationHistory);
@@ -36,11 +38,10 @@ export default function DataSettingsScreen() {
         ]}
       >
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Data
+          {t('settings.data.title')}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Export and import stay local. Reset is destructive and always asks for
-          confirmation.
+          {t('settings.data.body')}
         </Text>
 
         <View
@@ -52,7 +53,7 @@ export default function DataSettingsScreen() {
           <Text
             style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
           >
-            Safe actions
+            {t('settings.data.safeTitle')}
           </Text>
           <Pressable
             onPress={async () => {
@@ -79,7 +80,7 @@ export default function DataSettingsScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Export JSON
+                {t('settings.data.exportTitle')}
               </Text>
               <Text
                 style={[
@@ -87,8 +88,7 @@ export default function DataSettingsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Save a portable snapshot of tasks, habits, hydration history and
-                preferences.
+                {t('settings.data.exportBody')}
               </Text>
             </View>
           </Pressable>
@@ -108,7 +108,7 @@ export default function DataSettingsScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Import JSON
+                {t('settings.data.importTitle')}
               </Text>
               <Text
                 style={[
@@ -116,8 +116,7 @@ export default function DataSettingsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Restore a previous export through the built-in migration
-                pipeline.
+                {t('settings.data.importBody')}
               </Text>
             </View>
           </Pressable>
@@ -132,23 +131,22 @@ export default function DataSettingsScreen() {
           <Text
             style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}
           >
-            Destructive
+            {t('settings.data.destructiveTitle')}
           </Text>
           <Text
             style={[styles.sectionBody, { color: theme.colors.textSecondary }]}
           >
-            Reset replaces local data with the clean starter state. Export first
-            if you may need this data later.
+            {t('settings.data.destructiveBody')}
           </Text>
           <Pressable
             onPress={() =>
               Alert.alert(
-                'Reset all data',
-                'This will replace local data with seed content.',
+                t('settings.data.resetAlertTitle'),
+                t('settings.data.resetAlertBody'),
                 [
-                  { text: 'Cancel', style: 'cancel' },
+                  { text: t('common.cancel'), style: 'cancel' },
                   {
-                    text: 'Reset',
+                    text: t('settings.data.resetButton'),
                     style: 'destructive',
                     onPress: () => {
                       void (async () => {
@@ -168,7 +166,7 @@ export default function DataSettingsScreen() {
             <Text
               style={[styles.dangerLabel, { color: theme.colors.accentRed }]}
             >
-              Reset local data
+              {t('settings.data.resetButton')}
             </Text>
           </Pressable>
         </View>

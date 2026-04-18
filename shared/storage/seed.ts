@@ -1,3 +1,4 @@
+import { DEFAULT_APP_LANGUAGE } from '@/shared/i18n/messages';
 import { toDateKey } from '@/shared/lib/date';
 import type { AppState, TaskCategoryEntity } from '@/shared/types/app';
 
@@ -63,6 +64,7 @@ export const createSeedState = (): AppState => ({
   habits: [],
   preferences: {
     displayName: 'Astra',
+    language: DEFAULT_APP_LANGUAGE,
     dailyWaterTargetMl: 2500,
     quickWaterAmounts: [250, 500, 750],
     dayStartsAt: '00:00',

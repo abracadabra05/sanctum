@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from '@/shared/i18n';
 import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 
 export function ArchiveSnackbar() {
   const theme = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const lastArchivedItem = useUiStore((state) => state.lastArchivedItem);
   const clearLastArchivedItem = useUiStore(
@@ -88,8 +90,8 @@ export function ArchiveSnackbar() {
         <View style={styles.content}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
             {lastArchivedItem.kind === 'task'
-              ? 'Task archived'
-              : 'Habit archived'}
+              ? t('snackbar.taskArchived')
+              : t('snackbar.habitArchived')}
           </Text>
           <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
             {lastArchivedItem.title}
@@ -111,7 +113,7 @@ export function ArchiveSnackbar() {
           ]}
         >
           <Text style={[styles.undoLabel, { color: theme.colors.brand }]}>
-            Undo
+            {t('common.undo')}
           </Text>
         </Pressable>
       </View>

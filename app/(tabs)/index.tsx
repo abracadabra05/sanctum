@@ -13,6 +13,7 @@ import {
 import { getHabitCards } from '@/features/habits/selectors';
 import { getHydrationProgress } from '@/features/hydration/selectors';
 import { getOutstandingTasksForDate } from '@/features/tasks/selectors';
+import { getTaskCategoryLabel, translate, useI18n } from '@/shared/i18n';
 import {
   extractLocalTime,
   formatTimeLabel,
@@ -74,6 +75,7 @@ function DashboardHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
 
 export default function DashboardScreen() {
   const theme = useTheme();
+  const { language, locale, t } = useI18n();
   const hydrationToday = useAppStore((state) => state.hydrationToday);
   const preferences = useAppStore((state) => state.preferences);
   const tasks = useAppStore((state) => state.tasks);
@@ -110,20 +112,44 @@ export default function DashboardScreen() {
         .sort((left, right) => left.dueAt.localeCompare(right.dueAt))
         .map((task) => ({
           task,
-          category:
-            categories.find((item) => item.id === task.categoryId) ??
-            categories[0],
+          category: (() => {
+            const source = categories.find(
+              (item) => item.id === task.categoryId,
+            ) ??
+              categories[0] ?? {
+                id: 'uncategorized',
+                label: translate(language, 'task.category.uncategorized'),
+                color: '#E8EDF4',
+                kind: 'preset' as const,
+                archived: false,
+                archivedAt: null,
+              };
+
+            return {
+              ...source,
+              label: getTaskCategoryLabel(source, language),
+            };
+          })(),
           occurrence: {
             occurrenceDate: todayKey,
             displayTime: formatTimeLabel(
               extractLocalTime(task.dueAt),
               preferences.timeFormat,
+              locale,
             ),
             isCompleted: false,
           },
         }))
         .slice(0, 3),
-    [categories, preferences.timeFormat, taskCompletions, tasks, todayKey],
+    [
+      categories,
+      language,
+      locale,
+      preferences.timeFormat,
+      taskCompletions,
+      tasks,
+      todayKey,
+    ],
   );
 
   const habitCards = useMemo(
@@ -131,8 +157,9 @@ export default function DashboardScreen() {
       getHabitCards(
         habits.filter((item) => !item.archived),
         preferences.timeFormat,
+        language,
       ),
-    [habits, preferences.timeFormat],
+    [habits, language, preferences.timeFormat],
   );
 
   return (
@@ -144,8 +171,8 @@ export default function DashboardScreen() {
           <SectionHeading
             actionLabel={`${(hydrationProgress.consumedMl / 1000).toFixed(1)}L / ${(preferences.dailyWaterTargetMl / 1000).toFixed(1)}L`}
             onActionPress={() => router.navigate('/settings/water')}
-            eyebrow="Hydration"
-            title="Stay Fluid"
+            eyebrow={t('dashboard.hydration.eyebrow')}
+            title={t('dashboard.hydration.title')}
           />
         </View>
 
@@ -165,7 +192,9 @@ export default function DashboardScreen() {
           <View style={styles.waterTopRow}>
             <ProgressRing
               centerCaption={
-                hydrationProgress.isGoalReached ? 'Goal reached' : undefined
+                hydrationProgress.isGoalReached
+                  ? t('dashboard.progress.goalReached')
+                  : undefined
               }
               centerLabel={
                 hydrationProgress.isGoalReached
@@ -201,7 +230,7 @@ export default function DashboardScreen() {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Water
+                {t('dashboard.waterControl')}
               </Text>
               <Ionicons
                 color={theme.colors.iconNeutral}
@@ -215,8 +244,16 @@ export default function DashboardScreen() {
             style={[styles.waterSummary, { color: theme.colors.textSecondary }]}
           >
             {hydrationProgress.hasExceededGoal
-              ? `+${hydrationProgress.overflowMl} ml above goal`
-              : `${Math.max(0, preferences.dailyWaterTargetMl - hydrationProgress.consumedMl)} ml left today`}
+              ? t('dashboard.summary.aboveGoal', {
+                  amount: hydrationProgress.overflowMl,
+                })
+              : t('dashboard.summary.leftToday', {
+                  amount: Math.max(
+                    0,
+                    preferences.dailyWaterTargetMl -
+                      hydrationProgress.consumedMl,
+                  ),
+                })}
           </Text>
 
           <View style={styles.buttonRow}>
@@ -257,7 +294,7 @@ export default function DashboardScreen() {
             <Text
               style={[styles.customHint, { color: theme.colors.textSecondary }]}
             >
-              Custom amount
+              {t('dashboard.customAmount')}
             </Text>
             <View style={styles.customActions}>
               <TextInput
@@ -283,7 +320,7 @@ export default function DashboardScreen() {
                 <Text
                   style={[styles.addSmallLabel, { color: theme.colors.brand }]}
                 >
-                  Add
+                  {t('dashboard.add')}
                 </Text>
               </Pressable>
             </View>
@@ -292,9 +329,9 @@ export default function DashboardScreen() {
 
         <View>
           <SectionHeading
-            eyebrow="Productivity"
-            title="Daily To-Do"
-            actionLabel="Today"
+            eyebrow={t('dashboard.tasks.eyebrow')}
+            title={t('dashboard.tasks.title')}
+            actionLabel={t('dashboard.tasks.action')}
           />
         </View>
         <View style={styles.stack}>
@@ -309,14 +346,17 @@ export default function DashboardScreen() {
           ) : (
             <EmptyState
               icon="tasks"
-              title="All done"
-              description="Nothing active is left for today."
+              title={t('dashboard.tasks.emptyTitle')}
+              description={t('dashboard.tasks.emptyBody')}
             />
           )}
         </View>
 
         <View>
-          <SectionHeading eyebrow="Consistency" title="Habit Streaks" />
+          <SectionHeading
+            eyebrow={t('dashboard.habits.eyebrow')}
+            title={t('dashboard.habits.title')}
+          />
         </View>
         <View>
           <ScrollView
@@ -342,8 +382,8 @@ export default function DashboardScreen() {
               ) : (
                 <EmptyState
                   icon="habits"
-                  title="No habits yet"
-                  description="Create your first habit to start building streaks."
+                  title={t('dashboard.habits.emptyTitle')}
+                  description={t('dashboard.habits.emptyBody')}
                 />
               )}
             </View>
@@ -357,19 +397,19 @@ export default function DashboardScreen() {
           [
             {
               id: 'create-task',
-              label: 'Add task',
+              label: t('dashboard.fab.addTask'),
               icon: { name: 'add-circle-outline', type: 'ionicon' },
               onPress: () => setCreateTaskOpen(true),
             },
             {
               id: 'create-habit',
-              label: 'Add habit',
+              label: t('dashboard.fab.addHabit'),
               icon: { name: 'leaf-outline', type: 'ionicon' },
               onPress: () => setCreateHabitOpen(true),
             },
             {
               id: 'search-tasks',
-              label: 'Search tasks',
+              label: t('dashboard.fab.searchTasks'),
               icon: { name: 'search-outline', type: 'ionicon' },
               onPress: () => {
                 queueQuickAction('open-task-search');

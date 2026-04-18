@@ -3,12 +3,14 @@ import { Link } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { getThemeModeLabel, useI18n } from '@/shared/i18n';
 import { useAppStore } from '@/shared/store/app-store';
 import { radii, spacing, typography, useTheme } from '@/shared/theme';
 import { ScreenShell } from '@/shared/ui/screen-shell';
 
 export default function ProfileScreen() {
   const theme = useTheme();
+  const { language, t } = useI18n();
   const preferences = useAppStore((state) => state.preferences);
   const allHabits = useAppStore((state) => state.habits);
   const allCategories = useAppStore((state) => state.taskCategories);
@@ -24,29 +26,26 @@ export default function ProfileScreen() {
 
   const overviewRows = [
     {
-      label: 'Water plan',
+      label: t('profile.overview.waterPlan'),
       value: `${preferences.dailyWaterTargetMl} ml`,
-      detail: `${preferences.quickWaterAmounts.length} quick buttons`,
+      detail: t('profile.overview.waterDetail', {
+        count: preferences.quickWaterAmounts.length,
+      }),
     },
     {
-      label: 'Active habits',
+      label: t('profile.overview.activeHabits'),
       value: String(habits.length),
-      detail: 'Tracked inside the Habits tab',
+      detail: t('profile.overview.activeHabitsDetail'),
     },
     {
-      label: 'Task categories',
+      label: t('profile.overview.categories'),
       value: String(categories.length),
-      detail: 'Preset and custom filters',
+      detail: t('profile.overview.categoriesDetail'),
     },
     {
-      label: 'Appearance',
-      value:
-        preferences.themeMode === 'system'
-          ? 'System'
-          : preferences.themeMode === 'dark'
-            ? 'Dark'
-            : 'Light',
-      detail: `${preferences.timeFormat} clock`,
+      label: t('profile.overview.appearance'),
+      value: getThemeModeLabel(language, preferences.themeMode),
+      detail: t('profile.overview.clock', { format: preferences.timeFormat }),
     },
   ];
 
@@ -57,7 +56,7 @@ export default function ProfileScreen() {
           <Text
             style={[styles.headerTitle, { color: theme.colors.textPrimary }]}
           >
-            Profile
+            {t('profile.header')}
           </Text>
           <Ionicons
             color={theme.colors.iconNeutral}
@@ -91,7 +90,7 @@ export default function ProfileScreen() {
           {preferences.displayName}
         </Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          Local settings hub for hydration, tasks, habits and release checks.
+          {t('profile.subtitle')}
         </Text>
       </View>
 
@@ -109,7 +108,7 @@ export default function ProfileScreen() {
         ]}
       >
         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-          Overview
+          {t('profile.overview.title')}
         </Text>
         {overviewRows.map((row) => (
           <View
@@ -150,11 +149,10 @@ export default function ProfileScreen() {
         ]}
       >
         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-          Release prep
+          {t('profile.release.title')}
         </Text>
         <Text style={[styles.helper, { color: theme.colors.textSecondary }]}>
-          Replay the interactive onboarding guide after larger UI changes and
-          before final QA.
+          {t('profile.release.body')}
         </Text>
         <Pressable
           onPress={() => setAppTourSeen(false)}
@@ -165,7 +163,7 @@ export default function ProfileScreen() {
           ]}
         >
           <Text style={[styles.tourLabel, { color: theme.colors.brand }]}>
-            Replay interactive guide
+            {t('profile.release.button')}
           </Text>
         </Pressable>
       </View>
@@ -184,11 +182,10 @@ export default function ProfileScreen() {
         ]}
       >
         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-          Settings hub
+          {t('profile.settings.title')}
         </Text>
         <Text style={[styles.helper, { color: theme.colors.textSecondary }]}>
-          Water, notifications, display, archive recovery and data tools now
-          live behind a single settings route.
+          {t('profile.settings.body')}
         </Text>
         <Link asChild href={'/settings' as never}>
           <Pressable
@@ -214,7 +211,7 @@ export default function ProfileScreen() {
               <Text
                 style={[styles.linkText, { color: theme.colors.textPrimary }]}
               >
-                Open settings
+                {t('profile.settings.button')}
               </Text>
               <Text
                 style={[
@@ -222,7 +219,7 @@ export default function ProfileScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Central hub for release checks, backups and device preferences.
+                {t('profile.settings.summary')}
               </Text>
             </View>
             <Ionicons

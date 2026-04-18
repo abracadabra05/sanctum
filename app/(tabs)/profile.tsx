@@ -153,8 +153,8 @@ export default function ProfileScreen() {
           Release prep
         </Text>
         <Text style={[styles.helper, { color: theme.colors.textSecondary }]}>
-          Replay the onboarding guide after larger UI changes and before final
-          QA.
+          Replay the interactive onboarding guide after larger UI changes and
+          before final QA.
         </Text>
         <Pressable
           onPress={() => setAppTourSeen(false)}
@@ -165,7 +165,7 @@ export default function ProfileScreen() {
           ]}
         >
           <Text style={[styles.tourLabel, { color: theme.colors.brand }]}>
-            Replay quick tour
+            Replay interactive guide
           </Text>
         </Pressable>
       </View>

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useIsFocused } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -103,6 +103,8 @@ export default function TasksScreen() {
   const restoreTask = useAppStore((state) => state.restoreTask);
   const updateTask = useAppStore((state) => state.updateTask);
   const preferences = useAppStore((state) => state.preferences);
+  const isFocused = useIsFocused();
+  const pendingQuickAction = useUiStore((state) => state.pendingQuickAction);
   const setGestureBlock = useUiStore((state) => state.setGestureBlock);
   const setLastArchivedItem = useUiStore((state) => state.setLastArchivedItem);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -192,17 +194,21 @@ export default function TasksScreen() {
     [tasks],
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      const quickAction = useUiStore.getState().consumeQuickAction();
-      if (quickAction === 'open-task-search') {
-        setSearchOpen(true);
-      }
-      if (quickAction === 'open-create-task') {
-        openCreate();
-      }
-    }, [openCreate]),
-  );
+  useEffect(() => {
+    if (!isFocused) {
+      return;
+    }
+
+    if (pendingQuickAction === 'open-task-search') {
+      useUiStore.getState().consumeQuickAction();
+      setSearchOpen(true);
+    }
+
+    if (pendingQuickAction === 'open-create-task') {
+      useUiStore.getState().consumeQuickAction();
+      openCreate();
+    }
+  }, [isFocused, openCreate, pendingQuickAction]);
 
   const sections = useMemo(
     () =>

@@ -30,8 +30,9 @@ export default function OnboardingScreen() {
           Set up your sanctuary
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Start with your name, hydration goal and reminders. A quick product
-          tour will guide you through the rest right after this step.
+          Start with your name, hydration goal and reminders. Right after this
+          step, the guide will help you create your first task and habit from
+          scratch.
         </Text>
       </View>
 

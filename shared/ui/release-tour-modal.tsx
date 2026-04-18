@@ -1,15 +1,9 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useAppStore } from '@/shared/store/app-store';
 import { useUiStore } from '@/shared/store/ui-store';
 import { spacing, typography, useTheme } from '@/shared/theme';
 
@@ -20,46 +14,55 @@ interface ReleaseTourModalProps {
 
 const steps = [
   {
-    id: 'dashboard',
-    title: 'Dashboard keeps the day calm',
-    body: "Track water, see today's top tasks and check your habit momentum from one screen.",
-    icon: 'dashboard',
-    route: '/',
-  },
-  {
     id: 'tasks',
-    title: 'Tasks are built for fast action',
-    body: 'Use search, category filters and quick create. Swipe left to clear a task, tap to complete, long press to edit.',
+    title: 'Create your first task',
+    body: 'Open the task builder, add a title, choose the date and time, then save it. The guide starts with a blank list on purpose.',
+    hint: 'As soon as the first task is created, the guide moves to habits.',
     icon: 'checkmark-circle-outline',
-    route: '/tasks',
   },
   {
     id: 'habits',
-    title: 'Habits stay separate from tasks',
-    body: 'Tap a card to open schedule and history. From there you can mark today done or long press any habit to edit.',
+    title: 'Build a habit from scratch',
+    body: 'Now create your first habit: pick a name, set the schedule, choose a reminder if needed, and save it.',
+    hint: 'After the first habit is saved, the guide will wrap up.',
     icon: 'leaf-outline',
-    route: '/habits',
   },
   {
-    id: 'profile',
-    title: 'Profile is your control room',
-    body: 'Overview and release checks live here, while the full settings hub keeps backups, theme and notifications in one place.',
-    icon: 'person-outline',
-    route: '/profile',
+    id: 'ready',
+    title: 'Everything is ready',
+    body: 'Dashboard keeps water, tasks and habits together, while Profile lets you replay this guide and open the full settings hub later.',
+    hint: null,
+    icon: 'dashboard',
   },
 ] as const;
 
 export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
   const theme = useTheme();
   const router = useRouter();
-  const setGestureBlock = useUiStore((state) => state.setGestureBlock);
+  const queueQuickAction = useUiStore((state) => state.queueQuickAction);
+  const taskCount = useAppStore(
+    (state) => state.tasks.filter((item) => !item.archived).length,
+  );
+  const habitCount = useAppStore(
+    (state) => state.habits.filter((item) => !item.archived).length,
+  );
+
   const [stepIndex, setStepIndex] = useState(0);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(18)).current;
+  const startingCountsRef = useRef({ tasks: 0, habits: 0 });
+  const taskCountRef = useRef(taskCount);
+  const habitCountRef = useRef(habitCount);
 
   useEffect(() => {
-    setGestureBlock('release-tour', visible);
+    taskCountRef.current = taskCount;
+  }, [taskCount]);
 
+  useEffect(() => {
+    habitCountRef.current = habitCount;
+  }, [habitCount]);
+
+  useEffect(() => {
     if (!visible) {
       setStepIndex(0);
       opacity.setValue(0);
@@ -67,7 +70,11 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
       return;
     }
 
-    router.navigate(steps[0].route);
+    startingCountsRef.current = {
+      tasks: taskCountRef.current,
+      habits: habitCountRef.current,
+    };
+
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
@@ -80,23 +87,28 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [opacity, router, setGestureBlock, translateY, visible]);
+  }, [opacity, translateY, visible]);
 
-  const step = steps[stepIndex];
-
-  const goNext = () => {
-    if (stepIndex === steps.length - 1) {
-      onFinish();
+  useEffect(() => {
+    if (!visible) {
       return;
     }
 
-    const nextIndex = stepIndex + 1;
-    setStepIndex(nextIndex);
-    router.navigate(steps[nextIndex].route);
-  };
+    if (stepIndex === 0 && taskCount > startingCountsRef.current.tasks) {
+      setStepIndex(1);
+      return;
+    }
+
+    if (stepIndex === 1 && habitCount > startingCountsRef.current.habits) {
+      setStepIndex(2);
+    }
+  }, [habitCount, stepIndex, taskCount, visible]);
+
+  const step = steps[stepIndex];
+  const isPracticeStep = step.id === 'tasks' || step.id === 'habits';
 
   const icon = useMemo(() => {
-    if (step.id === 'dashboard') {
+    if (step.id === 'ready') {
       return (
         <MaterialIcons color={theme.colors.brand} name="dashboard" size={24} />
       );
@@ -105,76 +117,107 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
     return <Ionicons color={theme.colors.brand} name={step.icon} size={24} />;
   }, [step.icon, step.id, theme.colors.brand]);
 
+  const goNext = () => {
+    if (stepIndex === steps.length - 1) {
+      onFinish();
+      return;
+    }
+
+    setStepIndex((current) => current + 1);
+  };
+
+  const handlePrimaryAction = () => {
+    if (step.id === 'tasks') {
+      queueQuickAction('open-create-task');
+      router.navigate('/tasks');
+      return;
+    }
+
+    if (step.id === 'habits') {
+      queueQuickAction('open-create-habit');
+      router.navigate('/habits');
+      return;
+    }
+
+    onFinish();
+  };
+
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <Modal transparent visible={visible} animationType="none">
-      <View style={styles.overlay} pointerEvents="box-none">
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surfaceFloating,
-              shadowColor: theme.shadows.card.shadowColor,
-              shadowOffset: theme.shadows.card.shadowOffset,
-              shadowOpacity: theme.shadows.card.shadowOpacity,
-              shadowRadius: theme.shadows.card.shadowRadius,
-              elevation: theme.shadows.card.elevation,
-              opacity,
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          <View style={styles.topRow}>
-            <View
-              style={[
-                styles.iconWrap,
-                { backgroundColor: theme.colors.surfaceActive },
-              ]}
+    <View style={styles.overlay} pointerEvents="box-none">
+      <Animated.View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surfaceFloating,
+            shadowColor: theme.shadows.card.shadowColor,
+            shadowOffset: theme.shadows.card.shadowOffset,
+            shadowOpacity: theme.shadows.card.shadowOpacity,
+            shadowRadius: theme.shadows.card.shadowRadius,
+            elevation: theme.shadows.card.elevation,
+            opacity,
+            transform: [{ translateY }],
+          },
+        ]}
+      >
+        <View style={styles.topRow}>
+          <View
+            style={[
+              styles.iconWrap,
+              { backgroundColor: theme.colors.surfaceActive },
+            ]}
+          >
+            {icon}
+          </View>
+          <Pressable onPress={onFinish} style={styles.skipButton}>
+            <Text
+              style={[styles.skipLabel, { color: theme.colors.textSecondary }]}
             >
-              {icon}
-            </View>
-            <Pressable onPress={onFinish} style={styles.skipButton}>
-              <Text
-                style={[
-                  styles.skipLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Skip
-              </Text>
-            </Pressable>
-          </View>
+              Later
+            </Text>
+          </Pressable>
+        </View>
 
-          <Text style={[styles.eyebrow, { color: theme.colors.brand }]}>
-            Quick tour
+        <Text style={[styles.eyebrow, { color: theme.colors.brand }]}>
+          Interactive guide
+        </Text>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          {step.title}
+        </Text>
+        <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
+          {step.body}
+        </Text>
+        {step.hint ? (
+          <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
+            {step.hint}
           </Text>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-            {step.title}
-          </Text>
-          <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-            {step.body}
-          </Text>
+        ) : null}
 
-          <View style={styles.dotsRow}>
-            {steps.map((item, index) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor:
-                      index === stepIndex
-                        ? theme.colors.brand
-                        : theme.colors.surfaceMuted,
-                    width: index === stepIndex ? 20 : 8,
-                  },
-                ]}
-              />
-            ))}
-          </View>
+        <View style={styles.dotsRow}>
+          {steps.map((item, index) => (
+            <View
+              key={item.id}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor:
+                    index === stepIndex
+                      ? theme.colors.brand
+                      : theme.colors.surfaceMuted,
+                  width: index === stepIndex ? 20 : 8,
+                },
+              ]}
+            />
+          ))}
+        </View>
 
-          <View style={styles.actions}>
+        <View style={styles.actions}>
+          {isPracticeStep ? (
             <Pressable
-              onPress={onFinish}
+              onPress={goNext}
               style={({ pressed }) => [
                 styles.secondaryButton,
                 { backgroundColor: theme.colors.surfaceMuted },
@@ -187,36 +230,40 @@ export function ReleaseTourModal({ visible, onFinish }: ReleaseTourModalProps) {
                   { color: theme.colors.textPrimary },
                 ]}
               >
-                Later
+                Next
               </Text>
             </Pressable>
-            <Pressable
-              onPress={goNext}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                { backgroundColor: theme.colors.brand },
-                pressed && styles.pressed,
-              ]}
+          ) : null}
+          <Pressable
+            onPress={handlePrimaryAction}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: theme.colors.brand },
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text
+              style={[styles.primaryLabel, { color: theme.colors.surface }]}
             >
-              <Text
-                style={[styles.primaryLabel, { color: theme.colors.surface }]}
-              >
-                {stepIndex === steps.length - 1 ? 'Finish' : 'Next'}
-              </Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
+              {step.id === 'tasks'
+                ? 'Open task builder'
+                : step.id === 'habits'
+                  ? 'Open habit builder'
+                  : 'Finish'}
+            </Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 132,
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: 132,
   },
   card: {
     borderRadius: 26,
@@ -254,6 +301,10 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontSize: 15,
     lineHeight: 22,
+  },
+  hint: {
+    ...typography.caption,
+    lineHeight: 18,
   },
   dotsRow: {
     flexDirection: 'row',

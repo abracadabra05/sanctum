@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useIsFocused } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   LayoutAnimation,
@@ -36,6 +36,8 @@ export default function HabitsScreen() {
   const theme = useTheme();
   const habits = useAppStore((state) => state.habits);
   const preferences = useAppStore((state) => state.preferences);
+  const isFocused = useIsFocused();
+  const pendingQuickAction = useUiStore((state) => state.pendingQuickAction);
   const markHabitComplete = useAppStore((state) => state.markHabitComplete);
   const restoreHabit = useAppStore((state) => state.restoreHabit);
   const [showArchived, setShowArchived] = useState(false);
@@ -65,14 +67,14 @@ export default function HabitsScreen() {
     [habits],
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      const quickAction = useUiStore.getState().consumeQuickAction();
-      if (quickAction === 'open-create-habit') {
-        openCreate();
-      }
-    }, [openCreate]),
-  );
+  useEffect(() => {
+    if (!isFocused || pendingQuickAction !== 'open-create-habit') {
+      return;
+    }
+
+    useUiStore.getState().consumeQuickAction();
+    openCreate();
+  }, [isFocused, openCreate, pendingQuickAction]);
 
   const visibleHabits = useMemo(
     () =>

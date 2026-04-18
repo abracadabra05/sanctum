@@ -35,6 +35,9 @@ yarn-error.*
 .env*.local
 .idea/
 .tools/
+.qwen/
+AGENTS.md
+CLAUDE.md
 coverage/
 
 # typescript
